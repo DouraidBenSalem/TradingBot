@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Validation Report · Trading Bot{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Validation Report</h1><p class="muted">Lecture visuelle de la robustesse des stratégies · {{ report_name }}</p></div>
+  <span id="report-status" class="status-pill info">Chargement…</span>
+</div>
+
+<div class="kpi-grid">
+  <div class="card"><div class="card-label">Décision de déploiement</div><div class="value small" id="kpi-deployment">–</div></div>
+  <div class="card"><div class="card-label">Stratégie sélectionnée</div><div class="value small" id="kpi-selected">–</div></div>
+  <div class="card"><div class="card-label">Meilleur candidat observé</div><div class="value small" id="kpi-best">–</div></div>
+  <div class="card"><div class="card-label">Candidats évalués</div><div class="value" id="kpi-candidates">–</div></div>
+  <div class="card"><div class="card-label">Folds Walk-forward</div><div class="value" id="kpi-folds">–</div></div>
+  <div class="card"><div class="card-label">Période</div><div class="value small" id="kpi-period">–</div></div>
+</div>
+
+<div class="chart-grid">
+  <section><h2>Profit net par candidat</h2><div id="candidate-profit-chart" class="chart"></div></section>
+  <section><h2>Drawdown maximal par candidat</h2><div id="candidate-drawdown-chart" class="chart"></div></section>
+  <section><h2>Performance selon la phase</h2><div id="phase-performance-chart" class="chart"></div></section>
+  <section><h2>Évolution Walk-forward</h2><div id="walk-forward-chart" class="chart"></div></section>
+</div>
+
+<section>
+  <h2>Comparaison détaillée</h2>
+  <div class="table-wrap"><table><thead><tr><th>Candidat</th><th>Phase</th><th>Trades</th><th>Win Rate</th><th>Profit Factor</th><th>Profit net</th><th>Expectancy</th><th>Drawdown</th><th>Verdict</th></tr></thead><tbody id="candidate-table"></tbody></table></div>
+</section>
+
+<div class="split">
+  <section><h2>Critères d’acceptation</h2><div id="acceptance-criteria"></div></section>
+  <section><h2>Blocages de déploiement</h2><div id="deployment-reasons"></div></section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const phaseLabels={in_sample:'In sample',selection_validation:'Validation',final_holdout:'Holdout',full:'Échantillon complet'};
+function renderValidation(report){
+  const results=report.results||[], selectedName=report.selected_on_train_and_validation, selected=results.find(item=>item.name===selectedName)||(results[0]||{});
+  document.getElementById('kpi-deployment').innerHTML=`<span class="status-pill ${report.deployment_approved?'ok':'error'}">${report.deployment_approved?'APPROUVÉ':'NO TRADE'}</span>`;
+  document.getElementById('kpi-selected').textContent=selectedName||'Aucune';document.getElementById('kpi-best').textContent=report.best_observed_on_train_and_validation||'Aucun';
+  document.getElementById('kpi-candidates').textContent=results.length;document.getElementById('kpi-folds').textContent=report.walk_forward_fold_count??0;
+  document.getElementById('kpi-period').textContent=`${String(report.period?.start||'–').slice(0,10)} → ${String(report.period?.end||'–').slice(0,10)}`;
+  renderBars('candidate-profit-chart',results.map((item,index)=>({label:item.name,value:item.full?.net_profit||0,color:Number(item.full?.net_profit)<0?'#c0352b':['#176b87','#14845d','#6956c8'][index%3]})));
+  renderBars('candidate-drawdown-chart',results.map(item=>({label:item.name,value:Math.abs(Number(item.full?.max_drawdown_percent||0)),display:`${formatNumber(item.full?.max_drawdown_percent||0)} %`,color:'#c0352b'})));
+  const phases=['in_sample','selection_validation','final_holdout','full'];
+  renderLineChart('phase-performance-chart',[
+    {name:'Profit net',color:'#14845d',values:phases.map(key=>selected[key]?.net_profit)},
+    {name:'Expectancy',color:'#176b87',values:phases.map(key=>selected[key]?.expectancy)}
+  ],{labels:phases.map(key=>phaseLabels[key]),title:'Performance par phase'});
+  const folds=selected.walk_forward||[];
+  renderLineChart('walk-forward-chart',[
+    {name:'Train',color:'#176b87',values:folds.map(fold=>fold.train?.net_profit)},
+    {name:'Validation',color:'#6956c8',values:folds.map(fold=>fold.validation?.net_profit)}
+  ],{labels:folds.map((fold,index)=>fold.period?.validation_start||`Fold ${index+1}`),title:'Évolution Walk-forward'});
+
+  const table=document.getElementById('candidate-table');
+  table.innerHTML=results.flatMap(item=>phases.map(key=>{const m=item[key]||{}, verdict=key==='full'?(item.selection_passed?'Sélection validée':'Rejetée'):(Number(m.net_profit)>0?'Positive':'À surveiller');return `<tr><td><b>${escapeHtml(item.name)}</b></td><td>${escapeHtml(phaseLabels[key])}</td><td>${escapeHtml(m.total_trades??0)}</td><td>${formatNumber(m.win_rate)} %</td><td>${formatNumber(m.profit_factor)}</td><td class="${Number(m.net_profit)<0?'negative':'positive'}">${formatNumber(m.net_profit)}</td><td>${formatNumber(m.expectancy)}</td><td class="negative">${formatNumber(m.max_drawdown_percent)} %</td><td><span class="badge ${verdict==='Positive'||verdict==='Sélection validée'?'ok':verdict==='Rejetée'?'error':'warn'}">${escapeHtml(verdict)}</span></td></tr>`;})).join('')||'<tr><td colspan="9">Aucun résultat disponible.</td></tr>';
+
+  const criteria=report.acceptance_criteria||{};document.getElementById('acceptance-criteria').innerHTML=Object.entries(criteria).map(([key,value])=>`<div style="display:flex;justify-content:space-between;gap:12px;padding:9px 0;border-bottom:1px solid var(--line)"><span>${escapeHtml(key.replaceAll('_',' '))}</span><b>${escapeHtml(typeof value==='boolean'?(value?'Oui':'Non'):value)}</b></div>`).join('');
+  const reasons=report.deployment_rejection_reasons||[];document.getElementById('deployment-reasons').innerHTML=reasons.length?`<ul>${reasons.map(reason=>`<li style="margin:9px 0">${escapeHtml(reason)}</li>`).join('')}</ul>`:'<p><span class="status-pill ok">Tous les contrôles sont satisfaits</span></p>';
+  const status=document.getElementById('report-status');status.textContent=`${results.length} candidats · données ${report.data_sufficient_for_deployment?'suffisantes':'insuffisantes'}`;status.className=`status-pill ${report.data_sufficient_for_deployment?'ok':'warn'}`;
+}
+async function loadValidation(){try{const response=await fetch('/api/scalping-validation',{cache:'no-store'});const payload=await response.json();if(!response.ok||!payload.ok)throw new Error(payload.error||`HTTP ${response.status}`);renderValidation(payload.report);}catch(error){const status=document.getElementById('report-status');status.textContent=error.message;status.className='status-pill error';}}
+loadValidation();
+</script>
+{% endblock %}

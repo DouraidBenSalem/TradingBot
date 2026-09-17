@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Trading Bot Monitor{% endblock %}</title>
+  <style>
+    :root {
+      --ink:#142033; --muted:#66758a; --line:#dce4ec; --paper:#f3f6f9;
+      --panel:#fff; --accent:#176b87; --accent-soft:#e9f5f8; --ok:#14845d;
+      --warn:#bb6b0b; --error:#c0352b; --violet:#6956c8; --shadow:0 8px 24px rgba(20,32,51,.07);
+    }
+    * { box-sizing:border-box; }
+    body { margin:0; color:var(--ink); background:var(--paper); font:15px/1.5 Inter,Segoe UI,Arial,sans-serif; }
+    .shell { max-width:1480px; margin:auto; padding:0 22px 42px; }
+    nav { display:flex; align-items:center; gap:7px; flex-wrap:wrap; padding:15px 0; border-bottom:1px solid var(--line); position:sticky; top:0; background:rgba(243,246,249,.96); backdrop-filter:blur(10px); z-index:10; }
+    nav a { color:#274058; padding:8px 11px; border-radius:8px; text-decoration:none; font-weight:600; }
+    nav a:hover { color:var(--accent); background:var(--accent-soft); }
+    .brand { color:var(--accent); font-weight:800; margin-right:10px; letter-spacing:-.02em; }
+    .nav-status { margin-left:auto; display:flex; gap:12px; align-items:center; color:var(--muted); font-size:13px; }
+    .status { font-weight:800; } .SUCCESS,.CONNECTED,.RUNNING { color:var(--ok); }
+    .WARNING,.CONNECTING,.RECONNECTING,.IDLE { color:var(--warn); }
+    .ERROR,.CRITICAL,.DISCONNECTED,.CONNECTION_ERROR { color:var(--error); }
+    h1 { font-size:30px; margin:28px 0 3px; letter-spacing:-.03em; } h2 { font-size:19px; margin:0 0 14px; } h3 { font-size:15px; }
+    .page-head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap; margin-bottom:18px; }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(190px,1fr)); gap:13px; }
+    .kpi-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(155px,1fr)); gap:12px; }
+    .chart-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px; }
+    .card, section { background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:17px; margin:14px 0; box-shadow:var(--shadow); }
+    .card { margin:0; min-width:0; } .card-label { color:var(--muted); font-size:12px; text-transform:uppercase; letter-spacing:.055em; font-weight:700; }
+    .value { font-size:24px; line-height:1.25; font-weight:800; margin-top:7px; overflow-wrap:anywhere; letter-spacing:-.02em; }
+    .value.small { font-size:17px; } .muted { color:var(--muted); } .positive { color:var(--ok); } .negative { color:var(--error); }
+    .status-pill,.badge { display:inline-flex; align-items:center; gap:7px; padding:5px 10px; border-radius:999px; font-weight:750; font-size:12px; background:#edf1f5; }
+    .status-pill.ok,.badge.ok { color:#0b6848; background:#daf4e9; } .status-pill.warn,.badge.warn { color:#8b4d05; background:#fff0d5; }
+    .status-pill.error,.badge.error { color:#9e241d; background:#fde5e2; } .status-pill.info,.badge.info { color:#225779; background:#e5f2f8; }
+    .chart { width:100%; min-height:240px; position:relative; overflow:hidden; }
+    .chart svg { display:block; width:100%; height:240px; overflow:visible; }
+    .chart-empty { height:240px; display:grid; place-items:center; color:var(--muted); text-align:center; }
+    .chart-legend { display:flex; gap:14px; flex-wrap:wrap; color:var(--muted); font-size:12px; margin-top:8px; }
+    .legend-dot { width:9px; height:9px; border-radius:50%; display:inline-block; margin-right:5px; }
+    .table-wrap { overflow:auto; max-width:100%; }
+    table { width:100%; border-collapse:collapse; min-width:760px; } th,td { padding:9px 10px; border-bottom:1px solid var(--line); text-align:left; vertical-align:top; }
+    th { position:sticky; top:0; background:#f8fafc; color:#526176; font-size:12px; text-transform:uppercase; letter-spacing:.035em; z-index:1; }
+    tbody tr:hover { background:#f8fbfc; } .mono { font-family:Consolas,monospace; font-size:12px; }
+    .filters { display:flex; flex-wrap:wrap; align-items:end; gap:10px; margin-bottom:14px; }
+    label { color:var(--muted); font-size:12px; font-weight:700; display:grid; gap:4px; }
+    input,select { border:1px solid #cbd6e0; background:white; color:var(--ink); border-radius:7px; padding:8px 9px; min-height:36px; }
+    button { border:0; padding:9px 12px; color:white; background:var(--accent); border-radius:7px; cursor:pointer; font-weight:700; }
+    button:hover { filter:brightness(.93); } button.secondary { color:#395069; background:#e8eef3; } button.danger { background:var(--error); }
+    .timeline { display:grid; gap:0; } .timeline-item { display:grid; grid-template-columns:90px 14px 1fr; gap:10px; min-height:52px; }
+    .timeline-time { color:var(--muted); font-size:12px; padding-top:2px; } .timeline-marker { position:relative; }
+    .timeline-marker::before { content:""; position:absolute; left:6px; top:7px; bottom:-8px; width:2px; background:var(--line); }
+    .timeline-marker::after { content:""; position:absolute; left:2px; top:4px; width:10px; height:10px; border-radius:50%; background:var(--accent); box-shadow:0 0 0 3px var(--accent-soft); }
+    .timeline-item:last-child .timeline-marker::before { display:none; } .timeline-message { padding-bottom:14px; }
+    .decision { border-left:4px solid #90a4b8; } .decision.buy { border-left-color:var(--ok); } .decision.sell { border-left-color:var(--error); } .decision.no-trade { border-left-color:var(--warn); }
+    .split { display:grid; grid-template-columns:minmax(0,2fr) minmax(300px,1fr); gap:14px; }
+    .progress { height:8px; border-radius:6px; background:#e8eef3; overflow:hidden; } .progress > span { display:block; height:100%; background:var(--accent); }
+    pre { white-space:pre-wrap; overflow-wrap:anywhere; background:#f6f8fa; border-radius:8px; padding:12px; }
+    details summary { cursor:pointer; color:var(--accent); font-weight:700; }
+    iframe { width:100%; min-height:900px; border:1px solid var(--line); background:white; }
+    @media (max-width:950px) { .chart-grid,.split { grid-template-columns:1fr; } }
+    @media (max-width:700px) { .shell { padding:0 12px 30px; } .nav-status { margin-left:0; width:100%; } .value { font-size:21px; } h1 { font-size:25px; } }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <nav>
+      <span class="brand">Bot Monitor</span>
+      <a href="/">Dashboard</a><a href="/data-quality">Data Quality</a><a href="/mt5-demo">Monitoring MT5</a><a href="/strategy-risk">Stratégie &amp; Risque</a><a href="/scalping-validation">Validation Report</a><a href="/audit">Audit</a>
+      <span class="nav-status"><span>Pipeline <b id="nav-pipeline" class="status">–</b></span><span>DB <b id="nav-db" class="status">–</b></span></span>
+    </nav>
+    <main>{% block content %}{% endblock %}</main>
+  </div>
+  <script>
+    const escapeHtml = value => String(value == null ? '' : value).replace(/[&<>'"]/g, char => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[char]));
+    const formatNumber = (value, digits = 2) => value == null || value === '' || Number.isNaN(Number(value)) ? '–' : Number(value).toLocaleString('fr-FR', {minimumFractionDigits:digits, maximumFractionDigits:digits});
+    const formatDateTime = value => { if (!value) return '–'; const date = new Date(String(value).replace(' ', 'T')); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('fr-FR'); };
+    const formatDuration = seconds => { if (seconds == null) return '–'; seconds = Math.max(0, Number(seconds)); const d=Math.floor(seconds/86400),h=Math.floor(seconds%86400/3600),m=Math.floor(seconds%3600/60); return [d&&`${d}j`,h&&`${h}h`,m&&`${m}m`,(!d&&!h&&!m)&&`${Math.floor(seconds)}s`].filter(Boolean).join(' '); };
+    function statusClass(value) { value=String(value||'').toUpperCase(); return ['CONNECTED','RUNNING','SUCCESS','TRADE','BUY','CLOSED','EXECUTED'].includes(value)?'ok':['CONNECTING','RECONNECTING','IDLE','NO_TRADE','OPEN','PENDING'].includes(value)?'warn':'error'; }
+    function statusIcon(value) { const cls=statusClass(value); return cls==='ok'?'🟢':cls==='warn'?'🟡':'🔴'; }
+    function renderLineChart(id, series, options={}) {
+      const root=document.getElementById(id); if(!root)return;
+      const sets=(series||[]).filter(set=>Array.isArray(set.values)&&set.values.length);
+      if(!sets.length){root.innerHTML='<div class="chart-empty">Pas encore assez de données pour tracer cette courbe.</div>';return;}
+      const width=760,height=240,pad={l:52,r:18,t:18,b:34};
+      const points=sets.flatMap(set=>set.values.map((value,index)=>({value:Number(value),index}))).filter(point=>Number.isFinite(point.value));
+      if(!points.length){root.innerHTML='<div class="chart-empty">Données indisponibles.</div>';return;}
+      let min=options.min!=null?Number(options.min):Math.min(...points.map(point=>point.value)); let max=options.max!=null?Number(options.max):Math.max(...points.map(point=>point.value));
+      if(min===max){min-=1;max+=1;} const maxLength=Math.max(...sets.map(set=>set.values.length));
+      const x=index=>pad.l+(maxLength<=1?0:index/(maxLength-1))*(width-pad.l-pad.r); const y=value=>pad.t+(max-Number(value))/(max-min)*(height-pad.t-pad.b);
+      const grid=[0,.25,.5,.75,1].map(f=>{const yy=pad.t+f*(height-pad.t-pad.b),v=max-f*(max-min);return `<line x1="${pad.l}" y1="${yy}" x2="${width-pad.r}" y2="${yy}" stroke="#e3e9ef"/><text x="${pad.l-8}" y="${yy+4}" text-anchor="end" fill="#718096" font-size="11">${escapeHtml(formatNumber(v,options.digits??2))}</text>`}).join('');
+      const lines=sets.map((set,setIndex)=>{const color=set.color||['#176b87','#14845d','#c0352b','#6956c8'][setIndex%4];const coords=set.values.map((value,index)=>`${x(index)},${y(value)}`).join(' ');return `<polyline points="${coords}" fill="none" stroke="${color}" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>`;}).join('');
+      const labels=options.labels||[]; const labelSvg=labels.length?`<text x="${pad.l}" y="${height-8}" fill="#718096" font-size="11">${escapeHtml(labels[0]||'')}</text><text x="${width-pad.r}" y="${height-8}" text-anchor="end" fill="#718096" font-size="11">${escapeHtml(labels[labels.length-1]||'')}</text>`:'';
+      root.innerHTML=`<svg viewBox="0 0 ${width} ${height}" role="img" aria-label="${escapeHtml(options.title||'Graphique')}">${grid}${lines}${labelSvg}</svg><div class="chart-legend">${sets.map((set,index)=>`<span><i class="legend-dot" style="background:${set.color||['#176b87','#14845d','#c0352b','#6956c8'][index%4]}"></i>${escapeHtml(set.name||'Série')}</span>`).join('')}</div>`;
+    }
+    function renderBars(id, items, options={}) {
+      const root=document.getElementById(id); if(!root)return; const rows=(items||[]).filter(item=>Number.isFinite(Number(item.value)));
+      if(!rows.length){root.innerHTML='<div class="chart-empty">Pas encore de données.</div>';return;}
+      const max=Math.max(...rows.map(item=>Math.abs(Number(item.value))),1);
+      root.innerHTML=`<div style="display:grid;gap:11px;padding-top:10px">${rows.map(item=>`<div><div style="display:flex;justify-content:space-between;gap:10px"><span>${escapeHtml(item.label)}</span><b class="${Number(item.value)<0?'negative':''}">${escapeHtml(item.display??formatNumber(item.value,options.digits??2))}</b></div><div class="progress"><span style="width:${Math.max(2,Math.abs(Number(item.value))/max*100)}%;background:${item.color||'#176b87'}"></span></div></div>`).join('')}</div>`;
+    }
+    async function refreshPipelineStatus() {
+      try { const response=await fetch('/api/status',{cache:'no-store'}); const payload=await response.json(); const state=payload.state||{},db=payload.database||{};
+        const set=(id,value)=>{const node=document.getElementById(id);if(node){node.textContent=value||'–';node.className='status '+(value||'');}}; set('nav-pipeline',state.status);set('nav-db',db.status);
+      } catch(error) { const node=document.getElementById('nav-db');if(node){node.textContent='ERROR';node.className='status ERROR';} }
+    }
+    refreshPipelineStatus(); setInterval(refreshPipelineStatus,15000);
+  </script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Virtual environments and local dependencies
+.venv/
+venv/
+env/
+ENV/
+.tools/
+_pydeps/
+
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+
+# Generated runtime data and reports
+runtime/
+reports/
+data_quality_report.html
+*.log
+
+# Local databases and datasets
+*.db
+*.sqlite
+*.sqlite3
+*.csv
+*.parquet
+*.pkl
+*.pickle
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+.ipynb_checkpoints/
+
+*Technical_bot_guide.py

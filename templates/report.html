@@ -1,0 +1,42 @@
+{% extends "base.html" %}
+{% block title %}{{ title }}{% endblock %}
+{% block content %}
+<h1>{{ title }}</h1>
+<p class="muted">Mise à jour automatique toutes les 2 secondes.</p>
+<section><div class="grid">
+<div class="card">Bougies M1<div class="value" id="total-candles">-</div></div>
+<div class="card">Première bougie<div class="value" id="first-time">-</div></div>
+<div class="card">Dernière bougie<div class="value" id="last-time">-</div></div>
+<div class="card">Nouvelles lignes<div class="value" id="new-lines">-</div></div>
+<div class="card">Gaps 1 min<div class="value" id="gaps">-</div></div>
+<div class="card">Statut<div class="value" id="quality-status">-</div></div>
+</div></section>
+<section><h2>Dernières bougies reçues</h2><pre id="recent-candles">Chargement...</pre></section>
+<p><a href="/reports/data-quality" target="_blank" rel="noreferrer">Ouvrir le rapport HTML complet</a></p>
+{% endblock %}
+{% block scripts %}<script>
+let previousCount = null;
+function text(id, value) {
+	const node = document.getElementById(id);
+	if (node) node.textContent = value == null ? '-' : value;
+}
+async function refreshQuality() {
+	try {
+		const response = await fetch('/api/data-quality', {cache: 'no-store'});
+		const quality = await response.json();
+		const count = Number(quality.total_candles || 0);
+		text('total-candles', count);
+		text('first-time', quality.first_time);
+		text('last-time', quality.last_time);
+		text('new-lines', previousCount === null ? 0 : Math.max(0, count - previousCount));
+		text('gaps', `${quality.gap_1m || 0} / ${quality.missing_candles || 0}`);
+		text('quality-status', quality.quality_status || quality.status);
+		text('recent-candles', JSON.stringify(quality.recent_candles || [], null, 2));
+		previousCount = count;
+	} catch (error) {
+		text('quality-status', 'ERROR');
+	}
+}
+refreshQuality();
+setInterval(refreshQuality, 2000);
+</script>{% endblock %}

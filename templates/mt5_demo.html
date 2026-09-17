@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block title %}Monitoring MT5 · Trading Bot{% endblock %}
+{% block content %}
+<style>
+  input[type="checkbox"] { min-height:0; width:16px; height:16px; accent-color:var(--accent); }
+  .selection-tools { display:flex; align-items:center; gap:9px; flex-wrap:wrap; }
+  .selection-tools button:disabled { opacity:.45; cursor:not-allowed; }
+  .row-action { padding:6px 9px; white-space:nowrap; }
+  .select-cell { width:38px; text-align:center; }
+</style>
+<div class="page-head">
+  <div><h1>Monitoring MT5 Demo</h1><p class="muted">Suivi opérationnel, décisions expliquées et historique persistant du bot.</p></div>
+  <div style="display:flex;gap:8px;flex-wrap:wrap"><span id="bot-badge" class="status-pill info">Bot –</span><span id="mt5-badge" class="status-pill info">MT5 –</span><span id="page-refresh" class="status-pill info">Actualisation…</span></div>
+</div>
+
+<div class="kpi-grid">
+  <div class="card"><div class="card-label">Bot Status</div><div class="value small" id="bot-status">–</div><div class="muted">Uptime <b id="bot-uptime">–</b></div></div>
+  <div class="card"><div class="card-label">MT5 Connection</div><div class="value small" id="mt5-status">–</div><div class="muted" id="mt5-error">–</div></div>
+  <div class="card"><div class="card-label">Account Balance</div><div class="value" id="balance">–</div><div class="muted" id="account">–</div></div>
+  <div class="card"><div class="card-label">Equity</div><div class="value" id="equity">–</div><div class="muted">Floating <b id="floating">–</b></div></div>
+  <div class="card"><div class="card-label">Free Margin</div><div class="value" id="free-margin">–</div><div class="muted">Margin <b id="margin">–</b></div></div>
+  <div class="card"><div class="card-label">Number of trades</div><div class="value" id="trades">0</div><div class="muted"><b id="open-trades">0</b> open · <b id="closed-trades">0</b> closed</div></div>
+  <div class="card"><div class="card-label">Win Rate</div><div class="value" id="win-rate">0 %</div><div class="muted"><b id="wins">0</b> wins · <b id="losses">0</b> losses</div></div>
+  <div class="card"><div class="card-label">Profit Factor</div><div class="value" id="profit-factor">0</div><div class="muted">Expectancy <b id="expectancy">0</b></div></div>
+  <div class="card"><div class="card-label">Total Profit / Loss</div><div class="value" id="total-pnl">0</div><div class="muted">Drawdown <b id="current-drawdown">0</b></div></div>
+  <div class="card"><div class="card-label">Last signal</div><div class="value small" id="last-signal">–</div><div class="muted" id="last-signal-time">–</div></div>
+  <div class="card"><div class="card-label">Last trade</div><div class="value small" id="last-trade">–</div><div class="muted" id="last-trade-time">–</div></div>
+  <div class="card"><div class="card-label">Last bot activity</div><div class="value small" id="last-activity">–</div><div class="muted">MT5 <b id="last-connection">–</b></div></div>
+</div>
+
+<div class="chart-grid">
+  <section><h2>Équité et balance</h2><div id="mt5-equity-chart" class="chart"></div></section>
+  <section><h2>Profit cumulé</h2><div id="mt5-profit-chart" class="chart"></div></section>
+  <section><h2>Drawdown</h2><div id="mt5-drawdown-chart" class="chart"></div></section>
+  <section><h2>Gagnants / perdants</h2><div id="mt5-winloss-chart" class="chart"></div></section>
+</div>
+
+<section>
+  <h2>Ce que fait le bot actuellement</h2>
+  <div id="current-decision"><p class="muted">Aucune décision persistée.</p></div>
+</section>
+
+<section>
+  <div class="page-head" style="margin:0"><div><h2>Journal des décisions</h2><p class="muted">Chaque opportunité, y compris NO TRADE, est expliquée et stockée.</p></div><select id="decision-filter"><option value="">Toutes les décisions</option><option value="NO_TRADE">NO TRADE</option><option value="BUY">BUY</option><option value="SELL">SELL</option></select></div>
+  <div class="table-wrap"><table><thead><tr><th>Date / heure</th><th>Symbole</th><th>TF</th><th>Prix</th><th>Signal</th><th>Score</th><th>Décision</th><th>Raison</th><th>SL / TP</th><th>Lot</th><th>Résultat</th></tr></thead><tbody id="decision-history"></tbody></table></div>
+</section>
+
+<section>
+  <div class="page-head" style="margin:0"><div><h2>Trade History</h2><p id="trade-history-status" class="muted">Chargement…</p></div><div class="selection-tools"><button type="button" class="danger" id="delete-selected-trades" disabled>Supprimer la sélection</button></div></div>
+  <form id="trade-filters" class="filters">
+    <label>Symbole<select name="symbol" id="filter-symbol"><option value="">Tous</option></select></label>
+    <label>Du<input type="date" name="start_date"></label><label>Au<input type="date" name="end_date"></label>
+    <label>Type<select name="side"><option value="">BUY + SELL</option><option>BUY</option><option>SELL</option></select></label>
+    <label>Résultat<select name="performance"><option value="">Tous</option><option value="PROFITABLE">Profitable</option><option value="LOSS">Perte</option></select></label>
+    <label>Statut<select name="status"><option value="">Tous</option><option value="OPEN">Open</option><option value="CLOSED">Closed</option></select></label>
+    <button type="submit">Filtrer</button><button type="button" class="secondary" id="reset-filters">Réinitialiser</button>
+  </form>
+  <div class="table-wrap"><table><thead><tr><th class="select-cell"><input type="checkbox" id="select-all-trades" aria-label="Sélectionner tous les trades"></th><th>Ticket</th><th>Ouverture</th><th>Fermeture</th><th>Symbole</th><th>Type</th><th>Entrée</th><th>Sortie</th><th>Volume</th><th>SL</th><th>TP</th><th>P/L</th><th>Durée</th><th>Statut</th><th>Raison entrée</th><th>Raison sortie</th><th>Action</th></tr></thead><tbody id="trade-history"></tbody></table></div>
+</section>
+
+<div class="split">
+  <section><h2>Activity Log</h2><div id="activity-log" class="timeline"></div></section>
+  <section><h2>Historique de connexion MT5</h2><div id="connection-log" class="timeline"></div></section>
+</div>
+
+<section>
+  <div class="page-head" style="margin:0"><div><h2>Résumé des journées</h2><p class="muted">Sessions quotidiennes persistées dans PostgreSQL.</p></div><div class="selection-tools"><button type="button" class="danger" id="delete-selected-days" disabled>Supprimer la sélection</button></div></div>
+  <div class="table-wrap"><table><thead><tr><th class="select-cell"><input type="checkbox" id="select-all-days" aria-label="Sélectionner toutes les journées"></th><th>Date</th><th>Statut</th><th>Durée</th><th>Signaux</th><th>BUY / SELL</th><th>Rejetés</th><th>Trades</th><th>G / P</th><th>P/L</th><th>Motif principal</th><th>Action</th></tr></thead><tbody id="daily-history"></tbody></table></div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let latestPayload=null;
+let activeTradeQuery='';
+const setText=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value==null?'–':value;};
+const money=(value,currency='')=>value==null?'–':`${Number(value)>=0?'+':''}${formatNumber(value)}${currency?' '+currency:''}`;
+const actionClass=action=>action==='BUY'?'buy':action==='SELL'?'sell':'no-trade';
+const statusBadge=value=>`<span class="badge ${statusClass(value)}">${statusIcon(value)} ${escapeHtml(String(value||'–').replaceAll('_',' '))}</span>`;
+
+function selectedIds(kind){
+  return [...document.querySelectorAll(`input.${kind}-select:checked`)].map(node=>Number(node.value)).filter(Number.isInteger);
+}
+
+function updateSelectionControls(){
+  const tradeIds=selectedIds('trade'),dayIds=selectedIds('day');
+  const tradeButton=document.getElementById('delete-selected-trades'),dayButton=document.getElementById('delete-selected-days');
+  tradeButton.disabled=!tradeIds.length;tradeButton.textContent=tradeIds.length?`Supprimer (${tradeIds.length})`:'Supprimer la sélection';
+  dayButton.disabled=!dayIds.length;dayButton.textContent=dayIds.length?`Supprimer (${dayIds.length})`:'Supprimer la sélection';
+}
+
+async function deleteRows(kind,ids){
+  ids=[...new Set(ids.map(Number).filter(Number.isInteger))];if(!ids.length)return;
+  const label=kind==='trades'?'trade(s)':'résumé(s) de journée';
+  if(!window.confirm(`Supprimer définitivement ${ids.length} ${label} ? Cette action modifiera les KPI et graphiques associés.`))return;
+  const endpoint=kind==='trades'?'/api/mt5-demo/trades':'/api/mt5-demo/daily-sessions';
+  const response=await fetch(endpoint,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({ids})});
+  const payload=await response.json();if(!response.ok||!payload.ok)throw new Error(payload.error||`HTTP ${response.status}`);
+  await refreshMonitoring(activeTradeQuery);
+  if(payload.warning){const refresh=document.getElementById('page-refresh');refresh.textContent=payload.warning;refresh.className='status-pill warn';}
+}
+
+function bindRowSelection(kind){
+  document.querySelectorAll(`input.${kind}-select`).forEach(node=>node.addEventListener('change',updateSelectionControls));
+  document.querySelectorAll(`button[data-delete-${kind}]`).forEach(node=>node.addEventListener('click',()=>deleteRows(kind==='trade'?'trades':'days',[Number(node.dataset[`delete${kind[0].toUpperCase()}${kind.slice(1)}`])]).catch(showDeleteError)));
+  updateSelectionControls();
+}
+
+function showDeleteError(error){
+  const refresh=document.getElementById('page-refresh');refresh.textContent=`Suppression impossible : ${error.message}`;refresh.className='status-pill error';
+}
+
+function renderDecisions(decisions){
+  const filter=document.getElementById('decision-filter').value;const shown=(decisions||[]).filter(item=>!filter||item.action===filter);
+  const tbody=document.getElementById('decision-history');tbody.innerHTML=shown.slice(0,100).map(item=>{const reason=item.entry_reason||item.refusal_reason||'–';return `<tr><td>${escapeHtml(formatDateTime(item.occurred_at))}</td><td>${escapeHtml(item.symbol)}</td><td>${escapeHtml(item.timeframe)}</td><td>${formatNumber(item.current_price,5)}</td><td>${escapeHtml(item.signal)}</td><td>${escapeHtml(item.signal_score??'–')}</td><td>${statusBadge(item.action)}</td><td style="min-width:280px">${escapeHtml(reason)}${Object.keys(item.conditions||{}).length?`<details><summary>Conditions</summary><ul>${Object.entries(item.conditions).map(([key,value])=>`<li><b>${escapeHtml(key)}</b>: ${escapeHtml(typeof value==='object'?JSON.stringify(value):value)}</li>`).join('')}</ul></details>`:''}</td><td>${formatNumber(item.stop_loss,5)} / ${formatNumber(item.take_profit,5)}</td><td>${formatNumber(item.lot_size,2)}</td><td>${formatNumber(item.trade_result)}</td></tr>`;}).join('')||'<tr><td colspan="11">Aucune décision pour ce filtre.</td></tr>';
+}
+
+function renderTrades(trades,currency){
+  const tbody=document.getElementById('trade-history');tbody.innerHTML=(trades||[]).map(item=>{const locked=String(item.status).toUpperCase()==='OPEN';return `<tr><td class="select-cell"><input type="checkbox" class="trade-select" value="${Number(item.id)}" aria-label="Sélectionner le trade ${escapeHtml(item.ticket)}" ${locked?'disabled':''}></td><td class="mono">#${escapeHtml(item.ticket)}</td><td>${escapeHtml(formatDateTime(item.opened_at))}</td><td>${escapeHtml(formatDateTime(item.closed_at))}</td><td>${escapeHtml(item.symbol)}</td><td>${statusBadge(item.side)}</td><td>${formatNumber(item.entry_price,5)}</td><td>${formatNumber(item.exit_price,5)}</td><td>${formatNumber(item.volume,2)}</td><td>${formatNumber(item.stop_loss,5)}</td><td>${formatNumber(item.take_profit,5)}</td><td class="${Number(item.profit_loss)<0?'negative':'positive'}">${money(item.profit_loss,currency)}</td><td>${formatDuration(item.duration_seconds)}</td><td>${statusBadge(item.status)}</td><td style="min-width:220px">${escapeHtml(item.entry_reason||'–')}</td><td style="min-width:220px">${escapeHtml(item.exit_reason||'–')}</td><td><button type="button" class="${locked?'secondary':'danger'} row-action" data-delete-trade="${Number(item.id)}" ${locked?'disabled title="Une ligne OPEN représente une position active."':''}>${locked?'Trade ouvert':'Supprimer'}</button></td></tr>`}).join('')||'<tr><td colspan="17">Aucun trade exécuté pour ce filtre.</td></tr>';
+  document.getElementById('trade-history-status').textContent=`${(trades||[]).length} trade(s) affiché(s)`;
+  const symbols=[...new Set((trades||[]).map(item=>item.symbol).filter(Boolean))];const select=document.getElementById('filter-symbol'),current=select.value;symbols.forEach(symbol=>{if(![...select.options].some(option=>option.value===symbol)){const option=document.createElement('option');option.value=option.textContent=symbol;select.appendChild(option);}});select.value=current;
+  document.getElementById('select-all-trades').checked=false;bindRowSelection('trade');
+}
+
+function renderTimeline(id,items,kind){const root=document.getElementById(id);root.innerHTML=(items||[]).slice(0,80).map(item=>{const time=item.occurred_at;const title=kind==='connection'?item.status:item.event_type;const message=kind==='connection'?(item.error_message||`${item.terminal_open?'Terminal ouvert':'Terminal fermé'} · ${item.account_available?'Compte disponible':'Compte indisponible'}`):item.message;return `<div class="timeline-item"><div class="timeline-time">${escapeHtml(String(time||'').slice(11,19))}<br>${escapeHtml(String(time||'').slice(5,10))}</div><div class="timeline-marker"></div><div class="timeline-message"><b>${escapeHtml(String(title||'').replaceAll('_',' '))}</b><br><span class="muted">${escapeHtml(message||'')}</span></div></div>`;}).join('')||'<p class="muted">Aucun événement persisté.</p>';}
+
+function renderDaily(sessions){const tbody=document.getElementById('daily-history');tbody.innerHTML=(sessions||[]).map(item=>{const locked=String(item.status).toUpperCase()==='RUNNING';return `<tr><td class="select-cell"><input type="checkbox" class="day-select" value="${Number(item.id)}" aria-label="Sélectionner la journée ${escapeHtml(item.session_date)}" ${locked?'disabled':''}></td><td>${escapeHtml(String(item.session_date||item.opened_at||'').slice(0,10))}</td><td>${statusBadge(item.status)}</td><td>${formatDuration(item.duration_seconds)}</td><td>${item.total_signals||0}</td><td>${item.buy_signals||0} / ${item.sell_signals||0}</td><td>${item.rejected_signals||0}</td><td>${item.trades_opened||0}</td><td>${item.trades_won||0} / ${item.trades_lost||0}</td><td class="${Number(item.pnl)<0?'negative':'positive'}">${money(item.pnl)}</td><td>${escapeHtml(item.no_trade_reason||'–')}</td><td><button type="button" class="${locked?'secondary':'danger'} row-action" data-delete-day="${Number(item.id)}" ${locked?'disabled title="La session active doit être clôturée avant suppression."':''}>${locked?'Session active':'Supprimer'}</button></td></tr>`}).join('')||'<tr><td colspan="12">Aucune session quotidienne.</td></tr>';document.getElementById('select-all-days').checked=false;bindRowSelection('day');}
+
+function renderMonitoring(data){
+  latestPayload=data;const demo=data.demo||{},bot=data.bot||{},metrics=data.metrics||{},signal=data.signal||{},currency=demo.currency||'';const connection=demo.connection_status||(demo.connected?'CONNECTED':'DISCONNECTED');
+  const botBadge=document.getElementById('bot-badge');botBadge.textContent=`${statusIcon(bot.status)} Bot ${bot.status||'UNKNOWN'}`;botBadge.className=`status-pill ${statusClass(bot.status)}`;const mt5Badge=document.getElementById('mt5-badge');mt5Badge.textContent=`${statusIcon(connection)} MT5 ${connection.replaceAll('_',' ')}`;mt5Badge.className=`status-pill ${statusClass(connection)}`;
+  document.getElementById('bot-status').innerHTML=statusBadge(bot.status);setText('bot-uptime',formatDuration(bot.uptime_seconds));document.getElementById('mt5-status').innerHTML=statusBadge(connection);setText('mt5-error',demo.connection_error||`${demo.symbol||'–'} · spread ${formatNumber(demo.spread_points,1)} pts`);
+  setText('balance',demo.balance==null?'–':`${formatNumber(demo.balance)} ${currency}`.trim());setText('account',demo.account_login?`#${demo.account_login} · ${demo.account_server}`:'Compte indisponible');setText('equity',demo.equity==null?'–':`${formatNumber(demo.equity)} ${currency}`.trim());setText('floating',money(demo.floating_profit,currency));setText('free-margin',demo.free_margin==null?'–':`${formatNumber(demo.free_margin)} ${currency}`.trim());setText('margin',formatNumber(demo.margin));
+  setText('trades',metrics.total_trades||0);setText('open-trades',metrics.open_trades||0);setText('closed-trades',metrics.closed_trades||0);setText('win-rate',`${formatNumber(metrics.win_rate)} %`);setText('wins',metrics.winning_trades||0);setText('losses',metrics.losing_trades||0);setText('profit-factor',metrics.profit_factor==null?'∞':formatNumber(metrics.profit_factor));setText('expectancy',money(metrics.expectancy,currency));setText('total-pnl',money(metrics.total_profit_loss,currency));setText('current-drawdown',money(metrics.current_drawdown,currency));document.getElementById('total-pnl').className=`value ${Number(metrics.total_profit_loss)<0?'negative':'positive'}`;
+  const decisions=data.decisions||[],lastDecision=decisions[0];setText('last-signal',lastDecision?.signal||['NO TRADE','BUY','SELL'][Number(signal.signal||0)]);setText('last-signal-time',formatDateTime(lastDecision?.occurred_at||signal.latest_candle?.time));const lastTrade=(data.trades||[])[0];setText('last-trade',lastTrade?`${lastTrade.side} #${lastTrade.ticket}`:'Aucun trade');setText('last-trade-time',formatDateTime(lastTrade?.opened_at));setText('last-activity',formatDateTime(bot.last_activity));setText('last-connection',formatDateTime(bot.last_connection));
+  const current=document.getElementById('current-decision');if(lastDecision){const reason=lastDecision.entry_reason||lastDecision.refusal_reason||'–';current.innerHTML=`<div class="card decision ${actionClass(lastDecision.action)}"><div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div><span class="card-label">Décision</span><div class="value small">${escapeHtml(lastDecision.decision)}</div></div>${statusBadge(lastDecision.action)}</div><p>${escapeHtml(reason)}</p><div class="grid"><div><span class="card-label">Signal détecté</span><div><b>${escapeHtml(lastDecision.signal)}</b> · score ${escapeHtml(lastDecision.signal_score??'–')}</div></div><div><span class="card-label">Instrument / timeframe</span><div><b>${escapeHtml(lastDecision.symbol)}</b> · ${escapeHtml(lastDecision.timeframe)}</div></div><div><span class="card-label">Prix / SL / TP</span><div>${formatNumber(lastDecision.current_price,5)} · ${formatNumber(lastDecision.stop_loss,5)} · ${formatNumber(lastDecision.take_profit,5)}</div></div></div></div>`;}
+  const charts=data.charts||{},equity=charts.equity||[],perf=charts.performance||[];renderLineChart('mt5-equity-chart',[{name:'Équité',color:'#176b87',values:equity.map(p=>p.equity)},{name:'Balance',color:'#14845d',values:equity.map(p=>p.balance)}],{labels:equity.map(p=>String(p.time||'').slice(0,16))});renderLineChart('mt5-profit-chart',[{name:'Profit cumulé',color:'#14845d',values:perf.map(p=>p.cumulative_profit)}],{labels:perf.map(p=>String(p.time||'').slice(0,16))});renderLineChart('mt5-drawdown-chart',[{name:'Drawdown',color:'#c0352b',values:perf.map(p=>p.drawdown)}],{max:0,labels:perf.map(p=>String(p.time||'').slice(0,16))});renderBars('mt5-winloss-chart',[{label:'Gagnants',value:metrics.winning_trades||0,display:String(metrics.winning_trades||0),color:'#14845d'},{label:'Perdants',value:metrics.losing_trades||0,display:String(metrics.losing_trades||0),color:'#c0352b'}],{digits:0});
+  renderDecisions(decisions);renderTrades(data.trades||[],currency);renderTimeline('activity-log',data.events,'event');renderTimeline('connection-log',data.connection_events,'connection');renderDaily(data.daily_sessions||[]);
+  const refresh=document.getElementById('page-refresh');refresh.textContent=`Actualisé à ${new Date().toLocaleTimeString('fr-FR')}`;refresh.className='status-pill ok';
+}
+
+async function refreshMonitoring(query=activeTradeQuery){try{const response=await fetch(`/api/mt5-demo${query}`,{cache:'no-store'});const data=await response.json();if(!response.ok)throw new Error(data.error||`HTTP ${response.status}`);renderMonitoring(data);}catch(error){const refresh=document.getElementById('page-refresh');refresh.textContent=`Erreur: ${error.message}`;refresh.className='status-pill error';}}
+document.getElementById('decision-filter').addEventListener('change',()=>renderDecisions(latestPayload?.decisions||[]));document.getElementById('trade-filters').addEventListener('submit',event=>{event.preventDefault();const params=new URLSearchParams(new FormData(event.currentTarget));[...params.keys()].forEach(key=>{if(!params.get(key))params.delete(key)});activeTradeQuery=params.toString()?`?${params}`:'';refreshMonitoring(activeTradeQuery);});document.getElementById('reset-filters').addEventListener('click',()=>{document.getElementById('trade-filters').reset();activeTradeQuery='';refreshMonitoring();});
+document.getElementById('select-all-trades').addEventListener('change',event=>{document.querySelectorAll('input.trade-select:not(:disabled)').forEach(node=>node.checked=event.currentTarget.checked);updateSelectionControls();});
+document.getElementById('select-all-days').addEventListener('change',event=>{document.querySelectorAll('input.day-select:not(:disabled)').forEach(node=>node.checked=event.currentTarget.checked);updateSelectionControls();});
+document.getElementById('delete-selected-trades').addEventListener('click',()=>deleteRows('trades',selectedIds('trade')).catch(showDeleteError));
+document.getElementById('delete-selected-days').addEventListener('click',()=>deleteRows('days',selectedIds('day')).catch(showDeleteError));
+refreshMonitoring();setInterval(()=>{if(!document.querySelector('#trade-filters :focus')&&!selectedIds('trade').length&&!selectedIds('day').length)refreshMonitoring(activeTradeQuery);},5000);
+</script>
+{% endblock %}

@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% block title %}Dashboard · Trading Bot{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div><h1>Vue globale du bot</h1><p class="muted">État opérationnel, compte MT5 et performance réelle en un coup d’œil.</p></div>
+  <div><span id="dashboard-freshness" class="status-pill info">Actualisation…</span></div>
+</div>
+
+<div class="kpi-grid">
+  <div class="card"><div class="card-label">Bot</div><div class="value small" id="kpi-bot">–</div><div class="muted" id="kpi-uptime">–</div></div>
+  <div class="card"><div class="card-label">Connexion MT5</div><div class="value small" id="kpi-mt5">–</div><div class="muted" id="kpi-connection-time">–</div></div>
+  <div class="card"><div class="card-label">Balance</div><div class="value" id="kpi-balance">–</div><div class="muted" id="kpi-currency">Compte indisponible</div></div>
+  <div class="card"><div class="card-label">Équité</div><div class="value" id="kpi-equity">–</div><div class="muted">Marge libre <b id="kpi-margin">–</b></div></div>
+  <div class="card"><div class="card-label">Profit / perte</div><div class="value" id="kpi-pnl">–</div><div class="muted">Expectancy <b id="kpi-expectancy">–</b></div></div>
+  <div class="card"><div class="card-label">Trades</div><div class="value" id="kpi-trades">–</div><div class="muted"><b id="kpi-open">–</b> ouverts · <b id="kpi-closed">–</b> clôturés</div></div>
+  <div class="card"><div class="card-label">Win Rate</div><div class="value" id="kpi-win-rate">–</div><div class="muted"><b id="kpi-wins">–</b> G · <b id="kpi-losses">–</b> P</div></div>
+  <div class="card"><div class="card-label">Profit Factor</div><div class="value" id="kpi-profit-factor">–</div><div class="muted">Qualité du rendement</div></div>
+  <div class="card"><div class="card-label">Drawdown actuel</div><div class="value" id="kpi-drawdown">–</div><div class="muted">Maximum <b id="kpi-max-drawdown">–</b></div></div>
+</div>
+
+<div class="chart-grid">
+  <section><h2>Évolution de l’équité</h2><div id="equity-chart" class="chart"></div></section>
+  <section><h2>Profit cumulé</h2><div id="profit-chart" class="chart"></div></section>
+  <section><h2>Drawdown</h2><div id="drawdown-chart" class="chart"></div></section>
+  <section><h2>Trades gagnants / perdants</h2><div id="winloss-chart" class="chart"></div></section>
+</div>
+
+<section>
+  <h2>Activité du bot dans le temps</h2>
+  <div id="activity-chart" class="chart"></div>
+</section>
+
+<div class="split">
+  <section>
+    <h2>Dernière décision</h2>
+    <div id="latest-decision" class="muted">Aucune décision persistée.</div>
+  </section>
+  <section>
+    <h2>Signal actuel</h2>
+    <div class="grid">
+      <div><div class="card-label">Signal</div><div class="value small" id="current-signal">–</div></div>
+      <div><div class="card-label">Score</div><div class="value small" id="current-score">–</div></div>
+      <div><div class="card-label">Dernière bougie</div><div class="value small" id="current-candle">–</div></div>
+    </div>
+  </section>
+</div>
+
+<div class="split">
+  <section><h2>Activité récente</h2><div id="recent-activity" class="timeline"><p class="muted">Aucun événement.</p></div><p><a href="/mt5-demo">Ouvrir le monitoring détaillé →</a></p></section>
+  <section><h2>Qualité et alimentation des données</h2><div class="grid">
+    <div><div class="card-label">Bougies M1</div><div class="value small" id="data-candles">–</div></div>
+    <div><div class="card-label">Gaps / manquantes</div><div class="value small" id="data-gaps">–</div></div>
+    <div><div class="card-label">Statut</div><div class="value small" id="data-status">–</div></div>
+    <div><div class="card-label">Dernière donnée</div><div class="value small" id="data-last">–</div></div>
+  </div><p><a href="/data-quality">Consulter le rapport Data Quality →</a></p></section>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const setText=(id,value)=>{const node=document.getElementById(id);if(node)node.textContent=value==null?'–':value;};
+const setMoney=(id,value,currency='')=>setText(id,value==null?'–':`${Number(value)>=0?'+':''}${formatNumber(value)}${currency?' '+currency:''}`);
+
+function renderDashboard(monitoring,statusPayload){
+  const demo=monitoring.demo||{}, bot=monitoring.bot||{}, metrics=monitoring.metrics||{}, charts=monitoring.charts||{};
+  const botNode=document.getElementById('kpi-bot'); botNode.innerHTML=`<span class="status-pill ${statusClass(bot.status)}">${statusIcon(bot.status)} ${escapeHtml(bot.status||'UNKNOWN')}</span>`;
+  setText('kpi-uptime',`Uptime ${formatDuration(bot.uptime_seconds)}`);
+  const connection=demo.connection_status||(demo.connected?'CONNECTED':'DISCONNECTED');
+  document.getElementById('kpi-mt5').innerHTML=`<span class="status-pill ${statusClass(connection)}">${statusIcon(connection)} ${escapeHtml(connection.replaceAll('_',' '))}</span>`;
+  setText('kpi-connection-time',bot.last_connection?`Depuis ${formatDateTime(bot.last_connection)}`:(demo.connection_error||'Aucune connexion enregistrée'));
+  const currency=demo.currency||''; setText('kpi-balance',demo.balance==null?'–':`${formatNumber(demo.balance)} ${currency}`.trim());
+  setText('kpi-equity',demo.equity==null?'–':`${formatNumber(demo.equity)} ${currency}`.trim()); setText('kpi-margin',formatNumber(demo.free_margin)); setText('kpi-currency',demo.account_login?`${demo.account_server||''} · #${demo.account_login}`:'Compte indisponible');
+  setMoney('kpi-pnl',metrics.total_profit_loss,currency); setMoney('kpi-expectancy',metrics.expectancy,currency);
+  const pnlNode=document.getElementById('kpi-pnl'); pnlNode.className=`value ${Number(metrics.total_profit_loss)<0?'negative':'positive'}`;
+  setText('kpi-trades',metrics.total_trades??0);setText('kpi-open',metrics.open_trades??0);setText('kpi-closed',metrics.closed_trades??0);
+  setText('kpi-win-rate',`${formatNumber(metrics.win_rate)} %`);setText('kpi-wins',metrics.winning_trades??0);setText('kpi-losses',metrics.losing_trades??0);
+  setText('kpi-profit-factor',metrics.profit_factor==null?'∞':formatNumber(metrics.profit_factor));setMoney('kpi-drawdown',metrics.current_drawdown,currency);setMoney('kpi-max-drawdown',metrics.max_drawdown,currency);
+
+  const equity=charts.equity||[], perf=charts.performance||[], activity=charts.activity||[];
+  renderLineChart('equity-chart',[{name:'Équité',color:'#176b87',values:equity.map(p=>p.equity)},{name:'Balance',color:'#14845d',values:equity.map(p=>p.balance)}],{labels:equity.map(p=>String(p.time||'').slice(0,16)),title:'Évolution de l’équité'});
+  renderLineChart('profit-chart',[{name:'Profit cumulé',color:'#14845d',values:perf.map(p=>p.cumulative_profit)}],{labels:perf.map(p=>String(p.time||'').slice(0,16)),title:'Profit cumulé'});
+  renderLineChart('drawdown-chart',[{name:'Drawdown',color:'#c0352b',values:perf.map(p=>p.drawdown)}],{max:0,labels:perf.map(p=>String(p.time||'').slice(0,16)),title:'Drawdown'});
+  renderBars('winloss-chart',[{label:'Trades gagnants',value:metrics.winning_trades||0,display:String(metrics.winning_trades||0),color:'#14845d'},{label:'Trades perdants',value:metrics.losing_trades||0,display:String(metrics.losing_trades||0),color:'#c0352b'}],{digits:0});
+  renderLineChart('activity-chart',[{name:'Décisions',color:'#176b87',values:activity.map(p=>p.decisions)},{name:'Trades',color:'#14845d',values:activity.map(p=>p.trades)},{name:'Événements',color:'#6956c8',values:activity.map(p=>p.events)}],{min:0,digits:0,labels:activity.map(p=>String(p.time||'').slice(5)),title:'Activité du bot'});
+
+  const decision=(monitoring.decisions||[])[0];
+  if(decision){const action=decision.action||'NO_TRADE',cls=action==='BUY'?'buy':action==='SELL'?'sell':'no-trade';const reason=decision.entry_reason||decision.refusal_reason||'Aucune explication';const conditions=decision.conditions||{};document.getElementById('latest-decision').innerHTML=`<div class="card decision ${cls}"><div style="display:flex;justify-content:space-between;gap:10px"><b>${escapeHtml((decision.decision||action).replaceAll('_',' '))}</b><span class="muted">${escapeHtml(formatDateTime(decision.occurred_at))}</span></div><p>${escapeHtml(reason)}</p><div class="muted">${escapeHtml(decision.symbol)} · ${escapeHtml(decision.timeframe)} · prix ${formatNumber(decision.current_price,5)} · score ${escapeHtml(decision.signal_score??'–')}</div>${Object.keys(conditions).length?`<details><summary>Conditions vérifiées</summary><ul>${Object.entries(conditions).map(([key,value])=>`<li><b>${escapeHtml(key)}</b> — ${escapeHtml(typeof value==='object'?JSON.stringify(value):value)}</li>`).join('')}</ul></details>`:''}</div>`;}
+  const signal=monitoring.signal||{};setText('current-signal',['NO TRADE','BUY','SELL'][Number(signal.signal||0)]||'NO TRADE');setText('current-score',`${signal.score||0}/8`);setText('current-candle',signal.latest_candle?.time||bot.last_update);
+  const eventRoot=document.getElementById('recent-activity');const events=(monitoring.events||[]).slice(0,8);eventRoot.innerHTML=events.length?events.map(event=>`<div class="timeline-item"><div class="timeline-time">${escapeHtml(String(event.occurred_at||'').slice(11,19))}</div><div class="timeline-marker"></div><div class="timeline-message"><b>${escapeHtml(event.event_type.replaceAll('_',' '))}</b><br><span class="muted">${escapeHtml(event.message)}</span></div></div>`).join(''):'<p class="muted">Aucun événement persisté.</p>';
+
+  const db=statusPayload.database||{};setText('data-candles',db.total_candles);setText('data-gaps',`${db.gap_1m||0} / ${db.missing_candles||0}`);setText('data-status',db.quality_status||db.status);setText('data-last',db.last_time||'–');
+  const freshness=document.getElementById('dashboard-freshness');freshness.textContent=`Actualisé à ${new Date().toLocaleTimeString('fr-FR')}`;freshness.className='status-pill ok';
+}
+
+async function refreshDashboard(){
+  try{const [monitorResponse,statusResponse]=await Promise.all([fetch('/api/monitoring',{cache:'no-store'}),fetch('/api/status',{cache:'no-store'})]);if(!monitorResponse.ok)throw new Error(`Monitoring HTTP ${monitorResponse.status}`);renderDashboard(await monitorResponse.json(),await statusResponse.json());}
+  catch(error){const freshness=document.getElementById('dashboard-freshness');freshness.textContent=`Erreur: ${error.message}`;freshness.className='status-pill error';}
+}
+refreshDashboard();setInterval(refreshDashboard,10000);
+</script>
+{% endblock %}

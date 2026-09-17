@@ -1,0 +1,2414 @@
+{% extends "base.html" %}
+{% block title %}Historical Backtest — EUR/USD M1{% endblock %}
+{% block content %}
+<h1>Historical Backtest — EUR/USD M1</h1>
+<p class="muted">
+  Stratégie Trend Following + pullback rejeté (EMA 9/21/50, RSI 14, MACD, ATR 14).
+  Score minimum 7/8. Max 3 trades/jour. Données depuis <code>public.eurusd_features</code>.
+</p>
+
+<style>
+  :root {
+    --ink: #17202a;
+    --muted: #65727e;
+    --line: #dce3e8;
+    --paper: #f5f7f8;
+    --accent: #176b87;
+    --accent-soft: #eff6ff;
+    --ok: #247a54;
+    --ok-bg: #e1f1e9;
+    --warn: #a35b10;
+    --warn-bg: #fff0dc;
+    --error: #c0392b;
+    --error-bg: #fde8e8;
+    --win: #16a34a;
+    --loss: #dc2626;
+    --buy: #1d4ed8;
+    --sell: #be123c;
+  }
+  *, *::before, *::after { box-sizing: border-box; }
+
+  /* ===== 4 cartes presets ===== */
+  .presets-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 24px;
+  }
+  @media (max-width: 1000px) { .presets-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 520px)  { .presets-grid { grid-template-columns: 1fr; } }
+  .preset-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    cursor: pointer;
+    transition: transform .15s, box-shadow .15s, border-color .15s;
+    position: relative;
+  }
+  .preset-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(23,107,135,.12);
+    border-color: var(--accent);
+  }
+  .preset-card.disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+  .preset-card.active {
+    border-color: var(--accent);
+    background: var(--accent-soft);
+    box-shadow: inset 0 0 0 2px var(--accent);
+  }
+  .preset-badge {
+    display: inline-block;
+    padding: 3px 8px;
+    background: var(--accent-soft);
+    color: var(--accent);
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .3px;
+    margin-bottom: 8px;
+  }
+  .preset-title {
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .preset-subtitle {
+    font-size: 12px;
+    color: var(--muted);
+    margin-bottom: 10px;
+  }
+  .preset-range {
+    font-size: 12px;
+    background: var(--paper);
+    border-radius: 4px;
+    padding: 6px 8px;
+    line-height: 1.5;
+  }
+  .preset-range strong { color: var(--ink); }
+  .preset-objective {
+    margin-top: 10px;
+    font-size: 11px;
+    color: var(--muted);
+    border-left: 3px solid var(--line);
+    padding-left: 8px;
+    line-height: 1.4;
+  }
+
+  /* ===== Formulaire ===== */
+  .period-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr 1fr auto;
+    gap: 12px;
+    align-items: end;
+    padding: 14px;
+    margin-bottom: 10px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+  @media (max-width: 900px) {
+    .period-row { grid-template-columns: 1fr 1fr; }
+    .period-row .remove-wrap { grid-column: 1 / -1; justify-self: end; padding-top: 6px; }
+  }
+  @media (max-width: 520px) { .period-row { grid-template-columns: 1fr; } }
+  .period-row label {
+    display: block;
+    font-size: 13px;
+    color: var(--muted);
+    margin-bottom: 5px;
+    font-weight: 600;
+  }
+  .period-row .input-wrap input[type="text"] {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    font-size: 14px;
+    font-family: inherit;
+    box-sizing: border-box;
+    transition: border-color .15s, box-shadow .15s, background .15s;
+  }
+  .period-row .input-wrap input[type="text"]:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(23,107,135,.15);
+  }
+  .period-row .field-header {
+    display: flex;
+    align-items: center;
+  }
+  .hint-tooltip {
+    display: inline-block;
+    width: 16px;
+    height: 16px;
+    background: var(--muted);
+    color: white;
+    border-radius: 50%;
+    text-align: center;
+    line-height: 16px;
+    font-size: 11px;
+    cursor: help;
+    margin-left: 6px;
+    position: relative;
+  }
+  .hint-tooltip:hover::after {
+    content: attr(data-tip);
+    position: absolute;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--ink);
+    color: white;
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    z-index: 10;
+    min-width: 200px;
+    line-height: 1.4;
+    text-align: left;
+  }
+  .error-msg {
+    color: var(--error);
+    font-size: 13px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--error-bg);
+    border: 1px solid #f5c2c7;
+    border-radius: 4px;
+    display: none;
+    line-height: 1.5;
+  }
+  .error-msg ul { margin: 6px 0 0 20px; padding: 0; }
+  .success-msg {
+    color: #0f5132;
+    font-size: 13px;
+    margin-top: 8px;
+    padding: 10px 12px;
+    background: var(--ok-bg);
+    border: 1px solid #badbcc;
+    border-radius: 4px;
+    display: none;
+  }
+  .loading-overlay {
+    display: none;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(255,255,255,.88);
+    z-index: 999;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+  }
+  .loading-overlay.active { display: flex; }
+  .spinner {
+    width: 48px;
+    height: 48px;
+    border: 5px solid var(--line);
+    border-top: 5px solid var(--accent);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  .date-invalid, .input-wrap input.date-invalid {
+    border-color: var(--error) !important;
+    background: #fff5f5;
+  }
+  .input-wrap .format-hint {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 3px;
+  }
+  .data-range-banner {
+    padding: 10px 14px;
+    background: var(--accent-soft);
+    border: 1px solid #bfdbfe;
+    border-radius: 4px;
+    font-size: 13px;
+    color: #1e3a8a;
+    margin-bottom: 14px;
+  }
+  .data-range-banner strong { color: #1e40af; }
+  .row-title {
+    font-size: 12px;
+    font-weight: 700;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .5px;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .action-row {
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+  }
+  .action-row button { padding: 8px 12px; font-size: 13px; cursor: pointer; border: none; border-radius: 4px; color: white; font-weight: 600; }
+  button.primary-btn {
+    background: var(--accent);
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    font-size: 15px;
+    font-weight: 700;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background .15s;
+  }
+  button.primary-btn:hover { background: #124f66; }
+  button.primary-btn:disabled { background: var(--muted); cursor: not-allowed; }
+
+  /* ===== Summary cards ===== */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 10px;
+    margin: 16px 0;
+  }
+  .summary-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+  }
+  .summary-card .label {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    font-weight: 700;
+    margin-bottom: 4px;
+  }
+  .summary-card .value {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .summary-card .value.positive { color: var(--win); }
+  .summary-card .value.negative { color: var(--loss); }
+  .summary-card .sub {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+
+  /* ===== Section blocks ===== */
+  section.result-block {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 18px;
+    margin-top: 20px;
+  }
+  section.result-block h2 {
+    margin: 0 0 12px;
+    font-size: 18px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  section.result-block h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    background: var(--accent);
+    color: white;
+    border-radius: 50%;
+    font-size: 13px;
+  }
+  section.result-block h3 {
+    margin: 16px 0 8px;
+    font-size: 14px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  section.result-block.hidden { display: none; }
+
+  /* ===== Filters bar ===== */
+  .filter-bar {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+  .filter-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    background: white;
+    border-radius: 999px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--muted);
+    transition: all .15s;
+  }
+  .filter-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .filter-btn.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+
+  /* ===== Trade table ===== */
+  table.ht-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  table.ht-table thead th {
+    background: var(--paper);
+    color: var(--muted);
+    text-align: left;
+    padding: 8px 10px;
+    border-bottom: 2px solid var(--line);
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    white-space: nowrap;
+    position: sticky;
+    top: 0;
+  }
+  table.ht-table tbody td {
+    padding: 7px 10px;
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
+  }
+  table.ht-table tbody tr {
+    cursor: pointer;
+    transition: background .1s;
+  }
+  table.ht-table tbody tr:hover {
+    background: var(--accent-soft);
+  }
+  .side-buy {
+    color: var(--buy);
+    font-weight: 700;
+  }
+  .side-sell {
+    color: var(--sell);
+    font-weight: 700;
+  }
+  .pnl-win {
+    color: var(--win);
+    font-weight: 700;
+  }
+  .pnl-loss {
+    color: var(--loss);
+    font-weight: 700;
+  }
+  .score-pill {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .score-7-8 { background: #dcfce7; color: var(--win); }
+  .score-5-6 { background: var(--warn-bg); color: var(--warn); }
+  .score-low { background: var(--error-bg); color: var(--error); }
+
+  .table-scroll {
+    overflow-x: auto;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  /* ===== Modal ===== */
+  .modal-overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(23, 32, 42, .55);
+    z-index: 1000;
+    align-items: flex-start;
+    justify-content: center;
+    padding: 32px 16px;
+    overflow-y: auto;
+  }
+  .modal-overlay.open { display: flex; }
+  .modal-card {
+    background: white;
+    border-radius: 10px;
+    width: 100%;
+    max-width: 960px;
+    padding: 24px;
+    position: relative;
+    box-shadow: 0 20px 50px rgba(0,0,0,.25);
+  }
+  .modal-close {
+    position: absolute;
+    top: 12px; right: 12px;
+    width: 32px; height: 32px;
+    border: none;
+    background: var(--paper);
+    border-radius: 50%;
+    cursor: pointer;
+    font-size: 18px;
+    color: var(--muted);
+    font-weight: 700;
+  }
+  .modal-close:hover { background: var(--error-bg); color: var(--error); }
+  .modal-header {
+    border-bottom: 2px solid var(--line);
+    padding-bottom: 14px;
+    margin-bottom: 16px;
+  }
+  .modal-header h2 {
+    margin: 0;
+    font-size: 20px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .modal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 780px) { .modal-grid { grid-template-columns: 1fr; } }
+  .modal-section {
+    background: var(--paper);
+    border-radius: 6px;
+    padding: 14px;
+  }
+  .modal-section h4 {
+    margin: 0 0 10px;
+    font-size: 13px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+  }
+  .info-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+  }
+  .info-list li {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px dashed var(--line);
+    font-size: 13px;
+  }
+  .info-list li:last-child { border-bottom: none; }
+  .info-list li span:first-child { color: var(--muted); }
+  .info-list li span:last-child { font-weight: 600; color: var(--ink); }
+  .why-block, .exit-block {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px;
+    font-size: 13px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    font-family: 'Consolas', 'Monaco', monospace;
+  }
+  .score-bar {
+    display: flex;
+    gap: 3px;
+    margin: 6px 0 12px;
+  }
+  .score-pip {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--line);
+  }
+  .score-pip.on { background: var(--accent); }
+
+  /* ===== Data analysis / warehouse ===== */
+  .data-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 10px;
+  }
+  .data-item {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 10px 12px;
+  }
+  .data-item .k {
+    font-size: 11px;
+    color: var(--muted);
+    text-transform: uppercase;
+    letter-spacing: .3px;
+    font-weight: 600;
+    margin-bottom: 3px;
+  }
+  .data-item .v {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .data-item .v.ok { color: var(--ok); }
+  .data-item .v.warn { color: var(--warn); }
+  .data-item .v.err { color: var(--error); }
+  .quality-meter {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--paper);
+    border-radius: 6px;
+    margin: 10px 0;
+  }
+  .quality-bar {
+    flex: 1;
+    height: 10px;
+    background: var(--line);
+    border-radius: 999px;
+    overflow: hidden;
+  }
+  .quality-fill {
+    height: 100%;
+    border-radius: 999px;
+    transition: width .6s;
+  }
+  .quality-fill.excellent { background: var(--ok); }
+  .quality-fill.good { background: #84cc16; }
+  .quality-fill.correct { background: var(--warn); }
+  .quality-fill.bad { background: var(--error); }
+
+  /* Equity chart wrap */
+  #equity-chart {
+    width: 100%;
+    max-width: 100%;
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+  }
+
+  .hidden-initial { display: none; }
+
+  .badge-win {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #dcfce7;
+    color: var(--win);
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .badge-loss {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #fee2e2;
+    color: var(--loss);
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .badge-buy {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #dbeafe;
+    color: var(--buy);
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+  .badge-sell {
+    display: inline-block;
+    padding: 2px 8px;
+    background: #ffe4e6;
+    color: var(--sell);
+    border-radius: 999px;
+    font-weight: 700;
+    font-size: 11px;
+  }
+
+  /* ===== Trade history toolbar & persistence ===== */
+  .trade-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 12px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    margin-bottom: 12px;
+  }
+  .trade-toolbar-left, .trade-toolbar-right {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+  .sync-status {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: .3px;
+  }
+  .sync-status.synced { background: var(--ok-bg); color: var(--ok); }
+  .sync-status.unsynced { background: var(--warn-bg); color: var(--warn); }
+  .sync-status.error { background: var(--error-bg); color: var(--error); }
+  .sync-status.loading { background: var(--accent-soft); color: var(--accent); }
+  .sync-dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: currentColor;
+  }
+  .toolbar-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--line);
+    background: white;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--ink);
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    transition: all .15s;
+  }
+  .toolbar-btn:hover { border-color: var(--accent); color: var(--accent); }
+  .toolbar-btn.primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: white;
+  }
+  .toolbar-btn.primary:hover { background: #12556d; border-color: #12556d; color: white; }
+  .toolbar-btn.danger {
+    background: var(--error);
+    border-color: var(--error);
+    color: white;
+  }
+  .toolbar-btn.danger:hover { background: #962d22; border-color: #962d22; color: white; }
+  .toolbar-btn:disabled {
+    opacity: .5;
+    cursor: not-allowed;
+  }
+  .toolbar-btn .count-pill {
+    background: rgba(255,255,255,.2);
+    padding: 1px 6px;
+    border-radius: 999px;
+    font-size: 10px;
+  }
+
+  /* Delete button in table rows */
+  .btn-delete-row {
+    background: transparent;
+    border: 1px solid var(--error-bg);
+    color: var(--error);
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    transition: all .12s;
+  }
+  .btn-delete-row:hover {
+    background: var(--error);
+    color: white;
+    border-color: var(--error);
+  }
+  .btn-justify-row {
+    background: transparent;
+    border: 1px solid var(--accent-soft);
+    color: var(--accent);
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 700;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 4px;
+    transition: all .12s;
+  }
+  .btn-justify-row:hover {
+    background: var(--accent);
+    color: white;
+    border-color: var(--accent);
+  }
+  .row-actions {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+  }
+  .trade-db-id {
+    font-size: 10px;
+    color: var(--muted);
+    font-weight: 500;
+    display: block;
+  }
+
+  /* Expandable justification row */
+  .justify-expand {
+    background: #fbfdff;
+    border-bottom: 2px solid var(--accent-soft);
+  }
+  .justify-expand td {
+    padding: 0 !important;
+    cursor: default !important;
+  }
+  .justify-expand td:hover {
+    background: #fbfdff !important;
+  }
+  .justify-inner {
+    padding: 16px 20px;
+  }
+  .justify-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .justify-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px;
+  }
+  .justify-card h5 {
+    margin: 0 0 8px;
+    font-size: 11px;
+    color: var(--accent);
+    text-transform: uppercase;
+    letter-spacing: .4px;
+    border-bottom: 1px dashed var(--line);
+    padding-bottom: 6px;
+  }
+  .justify-card .comp {
+    display: flex;
+    justify-content: space-between;
+    padding: 3px 0;
+    font-size: 12px;
+  }
+  .justify-card .comp .k { color: var(--muted); }
+  .justify-card .comp .v { font-weight: 600; }
+  .justify-card .comp .pts {
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .decision-banner {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    border-radius: 6px;
+    background: var(--paper);
+    border: 1px solid var(--line);
+    margin-bottom: 12px;
+  }
+  .decision-banner .badge {
+    padding: 4px 10px;
+    border-radius: 6px;
+    font-weight: 700;
+    font-size: 12px;
+  }
+  .decision-banner.BUY .badge { background: #dbeafe; color: var(--buy); }
+  .decision-banner.SELL .badge { background: #ffe4e6; color: var(--sell); }
+  .decision-banner.NOT_TRADE .badge { background: var(--warn-bg); color: var(--warn); }
+  .decision-banner .score-big {
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--ink);
+  }
+  .decision-banner .score-big.ok { color: var(--ok); }
+  .decision-banner .score-big.warn { color: var(--warn); }
+  .decision-banner .score-big.bad { color: var(--error); }
+  .decision-banner .meta {
+    margin-left: auto;
+    font-size: 11px;
+    color: var(--muted);
+    text-align: right;
+  }
+  .why-full {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 12px 14px;
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 12px;
+    line-height: 1.7;
+    white-space: pre-wrap;
+    color: var(--ink);
+    margin-top: 12px;
+  }
+  .why-full .line-title {
+    color: var(--accent);
+    font-weight: 700;
+  }
+
+  .details-inline {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 2px;
+  }
+  .candle-preview {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    padding: 8px 10px;
+    font-size: 12px;
+    margin-top: 8px;
+  }
+  .candle-preview code {
+    background: white;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+</style>
+
+{# ========== 4 CARTES PRESETS ========== #}
+<section>
+  <h2 style="font-size:16px;margin:0 0 12px;">⚡ Backtests rapides</h2>
+  <div class="presets-grid" id="presets-grid">
+    {% for p in preset_periods %}
+    <div class="preset-card {% if p.disabled %}disabled{% endif %}"
+         data-preset-id="{{ p.id }}"
+         data-start-date="{{ p.start_date }}"
+         data-start-hour="{{ p.start_hour }}"
+         data-end-date="{{ p.end_date }}"
+         data-end-hour="{{ p.end_hour }}">
+      <span class="preset-badge">{{ p.days_label }}</span>
+      <div class="preset-title">{{ p.label }}</div>
+      <div class="preset-subtitle">{{ p.subtitle }}</div>
+      <div class="preset-range">
+        <div><strong>{{ p.start_date }}</strong> {{ p.start_hour }}</div>
+        <div class="muted" style="font-size:11px;">→</div>
+        <div><strong>{{ p.end_date }}</strong> {{ p.end_hour }}</div>
+      </div>
+      <div class="preset-objective">{{ p.objective }}</div>
+    </div>
+    {% endfor %}
+  </div>
+</section>
+
+{# ========== FORMULAIRE ========== #}
+<section>
+  <h2 style="font-size:16px;margin:0 0 12px;">🔍 Période personnalisée</h2>
+  <div class="data-range-banner" id="data-range-banner">
+    Chargement des plages de données disponibles…
+  </div>
+
+  <form id="backtest-form" novalidate>
+    <div id="period-rows">
+      <div class="period-row" data-index="0">
+        <div style="grid-column: 1 / -1;">
+          <div class="row-title"><span>Période #1</span><span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;">Format : JJ/MM/AAAA + HH:MM</span></div>
+        </div>
+        <div class="input-wrap">
+          <div class="field-header">
+            <label for="date-debut-0">Date de début</label>
+            <span class="hint-tooltip" data-tip="Obligatoire. Format JJ/MM/AAAA. Exemple : 10/09/2026">?</span>
+          </div>
+          <input id="date-debut-0" name="date_debut_0" type="text" placeholder="JJ/MM/AAAA" inputmode="numeric" maxlength="10" autocomplete="off">
+          <div class="format-hint">Ex. 10/09/2026</div>
+        </div>
+        <div class="input-wrap">
+          <div class="field-header">
+            <label for="heure-debut-0">Heure de début</label>
+            <span class="hint-tooltip" data-tip="Obligatoire. Format 24h HH:MM. Exemple : 08:00">?</span>
+          </div>
+          <input id="heure-debut-0" name="heure_debut_0" type="text" placeholder="HH:MM" inputmode="numeric" maxlength="5" autocomplete="off">
+          <div class="format-hint">Ex. 08:00 (session Londres)</div>
+        </div>
+        <div class="input-wrap">
+          <div class="field-header">
+            <label for="date-fin-0">Date de fin</label>
+            <span class="hint-tooltip" data-tip="Obligatoire. Doit être strictement postérieure à la date+heure de début.">?</span>
+          </div>
+          <input id="date-fin-0" name="date_fin_0" type="text" placeholder="JJ/MM/AAAA" inputmode="numeric" maxlength="10" autocomplete="off">
+          <div class="format-hint">Ex. 10/09/2026</div>
+        </div>
+        <div class="input-wrap">
+          <div class="field-header">
+            <label for="heure-fin-0">Heure de fin</label>
+            <span class="hint-tooltip" data-tip="Obligatoire. Exemple : 18:00 (couverture Londres + début NY)">?</span>
+          </div>
+          <input id="heure-fin-0" name="heure_fin_0" type="text" placeholder="HH:MM" inputmode="numeric" maxlength="5" autocomplete="off">
+          <div class="format-hint">Ex. 18:00</div>
+        </div>
+        <div class="remove-wrap" style="padding-bottom:6px;">
+          <button type="button" class="remove-row danger" style="display:none;background:var(--error);color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;font-weight:600;">Retirer</button>
+        </div>
+      </div>
+    </div>
+    <div class="action-row">
+      <button type="button" id="add-period" style="background:#65727e;color:white;">+ Ajouter une période</button>
+      <button type="button" id="clear-periods" style="background:var(--error);color:white;">Tout effacer</button>
+      <button type="button" id="fill-example" style="background:#0f766e;color:white;">📋 Exemple rapide</button>
+    </div>
+    <div class="error-msg" id="form-error"></div>
+    <div class="success-msg" id="form-success"></div>
+    <div style="margin-top:14px;">
+      <button type="submit" class="primary-btn" id="submit-btn">🚀 Lancer le backtest</button>
+    </div>
+  </form>
+  <p class="muted" style="margin-top:8px;">
+    Le backtest utilise exclusivement les bougies M1 de la paire EUR/USD dont le timestamp se situe dans l'intervalle fermé sélectionné [début ; fin].
+    Les résultats sont affichés immédiatement ci-dessous.
+  </p>
+</section>
+
+{# ========== LOADING ========== #}
+<div class="loading-overlay" id="loading-overlay">
+  <div class="spinner"></div>
+  <p style="font-size:16px;font-weight:bold;">Backtest en cours...</p>
+  <p class="muted" id="loading-text">Analyse des périodes en cours</p>
+</div>
+
+{# ========== 1. RÉSUMÉ GLOBAL ========== #}
+<section class="result-block hidden-initial" id="section-summary">
+  <h2><span class="num">1</span> Résumé global du backtest <span id="summary-period" class="muted" style="font-size:13px;font-weight:400;"></span></h2>
+  <div class="summary-grid" id="summary-grid"></div>
+</section>
+
+{# ========== 2. ÉVOLUTION DU CAPITAL ========== #}
+<section class="result-block hidden-initial" id="section-equity">
+  <h2><span class="num">2</span> Évolution du capital</h2>
+  <div class="table-scroll" style="padding:10px;">
+    <canvas id="equity-chart" width="1100" height="300"></canvas>
+  </div>
+</section>
+
+{# ========== 3. HISTORIQUE DES TRADES ========== #}
+<section class="result-block hidden-initial" id="section-trades">
+  <h2><span class="num">3</span> Trade History <span id="trades-count" class="muted" style="font-size:13px;font-weight:400;"></span></h2>
+
+  <div class="trade-toolbar">
+    <div class="trade-toolbar-left">
+      <div id="sync-status" class="sync-status unsynced">
+        <span class="sync-dot"></span>
+        <span id="sync-status-text">Non synchronisé</span>
+      </div>
+      <button id="btn-sync-trades" class="toolbar-btn primary" type="button" title="Sauvegarder l'historique actuel dans PostgreSQL">
+        💾 <span>Sauvegarder dans PostgreSQL</span>
+        <span id="sync-count" class="count-pill">0</span>
+      </button>
+      <button id="btn-load-db-history" class="toolbar-btn" type="button" title="Charger l'historique complet depuis PostgreSQL">
+        🗃️ Charger l'historique persistant
+      </button>
+    </div>
+    <div class="trade-toolbar-right">
+      <span id="db-history-info" class="muted" style="font-size:11px;"></span>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="trades-filters">
+    <button class="filter-btn active" data-filter="all">Tous</button>
+    <button class="filter-btn" data-filter="BUY">BUY</button>
+    <button class="filter-btn" data-filter="SELL">SELL</button>
+    <button class="filter-btn" data-filter="WIN">Gagnants</button>
+    <button class="filter-btn" data-filter="LOSS">Perdants</button>
+    <button class="filter-btn" data-filter="NOT_TRADE" title="Décisions de ne pas trader">⏸ Pas trade</button>
+  </div>
+  <div class="table-scroll">
+    <table class="ht-table" id="ht-table">
+      <thead>
+        <tr>
+          <th>#</th>
+          <th>Date</th>
+          <th>Entrée</th>
+          <th>Sortie</th>
+          <th>Durée</th>
+          <th>Side</th>
+          <th>Prix entrée</th>
+          <th>Prix sortie</th>
+          <th>SL</th>
+          <th>TP</th>
+          <th>ATR</th>
+          <th>RSI</th>
+          <th>Score</th>
+          <th>Résultat brut</th>
+          <th>Comm.</th>
+          <th>Slip.</th>
+          <th>Résultat net</th>
+          <th>Balance</th>
+          <th>Sortie</th>
+          <th>Décision</th>
+        </tr>
+      </thead>
+      <tbody id="trade-rows"></tbody>
+    </table>
+  </div>
+  <div id="db-load-more-wrap" style="display:none;text-align:center;margin-top:12px;">
+    <button id="btn-load-more-db-history" class="toolbar-btn" type="button">
+      Charger les enregistrements suivants
+    </button>
+  </div>
+</section>
+
+{# ========== 4. ANALYSE DES DONNÉES UTILISÉES ========== #}
+<section class="result-block hidden-initial" id="section-data-used">
+  <h2><span class="num">4</span> Data utilisée pour le backtest</h2>
+  <div id="data-used-content"></div>
+</section>
+
+{# ========== 5. ANALYSE DU DATA WAREHOUSE ========== #}
+<section class="result-block hidden-initial" id="section-warehouse">
+  <h2><span class="num">5</span> Analyse du Data Warehouse</h2>
+  <div id="warehouse-content">Chargement...</div>
+</section>
+
+{# ========== MODAL DÉTAILS TRADE ========== #}
+<div class="modal-overlay" id="trade-modal">
+  <div class="modal-card">
+    <button class="modal-close" id="modal-close">×</button>
+    <div class="modal-header" id="modal-header"></div>
+    <div class="modal-grid" id="modal-body"></div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PRESET_PERIODS = {{ preset_periods | tojson() }};
+const MULTI_BACKTESTS = {{ multi_backtests | tojson() }};
+const LAST_RESULT = {{ result | tojson() }};
+const WAREHOUSE_SNAPSHOT = {{ warehouse_snapshot | tojson() }};
+
+/* ==========================================================
+   0. UTILITAIRES
+========================================================== */
+const $ = (id) => document.getElementById(id);
+const fmtMoney = (n) => {
+  const v = Number(n) || 0;
+  return (v >= 0 ? '+' : '') + v.toFixed(2) + ' $';
+};
+const fmtNum = (n, d = 2) => (Number(n) || 0).toFixed(d);
+
+/* ==========================================================
+   1. AFFICHAGE DES CARTES PRESETS
+========================================================== */
+document.querySelectorAll('.preset-card').forEach(card => {
+  card.addEventListener('click', () => {
+    if (card.classList.contains('disabled')) return;
+    document.querySelectorAll('.preset-card').forEach(c => c.classList.remove('active'));
+    card.classList.add('active');
+    const sd = card.dataset.startDate, sh = card.dataset.startHour;
+    const ed = card.dataset.endDate, eh = card.dataset.endHour;
+    const firstRow = document.querySelector('.period-row');
+    if (!firstRow) return;
+    firstRow.querySelector('[name="date_debut_0"]').value = sd;
+    firstRow.querySelector('[name="heure_debut_0"]').value = sh;
+    firstRow.querySelector('[name="date_fin_0"]').value = ed;
+    firstRow.querySelector('[name="heure_fin_0"]').value = eh;
+    document.querySelectorAll('.period-row input').forEach(el => setFieldInvalid(el, false));
+    clearFormError();
+    validatePeriodRow(firstRow);
+  });
+});
+
+/* ==========================================================
+   2. GESTION DU FORMULAIRE (masques, validation)
+========================================================== */
+let periodIndex = 1;
+const DATA_RANGE = { min: null, max: null };
+
+async function loadDataRange() {
+  try {
+    const res = await fetch('/api/features-range', { cache: 'no-store' });
+    if (res.ok) {
+      const data = await res.json();
+      DATA_RANGE.min = data.min ? new Date(data.min) : null;
+      DATA_RANGE.max = data.max ? new Date(data.max) : null;
+      const banner = $('data-range-banner');
+      if (DATA_RANGE.min && DATA_RANGE.max) {
+        const fmt = d => `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+        banner.innerHTML = `✅ Données EUR/USD M1 disponibles du <strong>${fmt(DATA_RANGE.min)}</strong> au <strong>${fmt(DATA_RANGE.max)}</strong>. Toute saisie en dehors de cette plage sera refusée.`;
+      } else {
+        banner.textContent = '⚠ Aucune donnée disponible actuellement. Lancez d\'abord la collecte.';
+      }
+    }
+  } catch (_) {
+    const banner = $('data-range-banner');
+    banner.textContent = 'Impossible de récupérer la plage de données disponibles.';
+  }
+}
+loadDataRange();
+
+function parseFrenchDate(s) {
+  if (!s || typeof s !== 'string') return null;
+  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  const day = Number(m[1]), month = Number(m[2]), year = Number(m[3]);
+  if (month < 1 || month > 12) return null;
+  if (day < 1 || day > 31) return null;
+  const dt = new Date(year, month - 1, day);
+  if (dt.getFullYear() !== year || dt.getMonth() !== month - 1 || dt.getDate() !== day) return null;
+  return dt;
+}
+function parseTime(s) {
+  if (!s || typeof s !== 'string') return null;
+  const m = s.match(/^(\d{2}):(\d{2})$/);
+  if (!m) return null;
+  const h = Number(m[1]), min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return { hour: h, minute: min };
+}
+function combineDateTime(dateStr, timeStr) {
+  const d = parseFrenchDate(dateStr);
+  const t = parseTime(timeStr);
+  if (!d || !t) return null;
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), t.hour, t.minute, 0, 0);
+}
+function formatFrenchDate(d) {
+  if (!d) return '';
+  return `${String(d.getDate()).padStart(2,'0')}/${String(d.getMonth()+1).padStart(2,'0')}/${d.getFullYear()}`;
+}
+function formatTime(d) {
+  if (!d) return '';
+  return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;
+}
+function maskDateInput(el) {
+  const digits = el.value.replace(/\D/g, '').slice(0, 8);
+  let out = '';
+  if (digits.length >= 1) out += digits.slice(0, 2);
+  if (digits.length >= 3) out += '/' + digits.slice(2, 4);
+  if (digits.length >= 5) out += '/' + digits.slice(4, 8);
+  if (out !== el.value) el.value = out;
+}
+function maskTimeInput(el) {
+  const digits = el.value.replace(/\D/g, '').slice(0, 4);
+  let out = '';
+  if (digits.length >= 1) out += digits.slice(0, 2);
+  if (digits.length >= 3) out += ':' + digits.slice(2, 4);
+  if (out !== el.value) el.value = out;
+}
+function setFieldInvalid(el, invalid) {
+  if (!el) return;
+  el.classList.toggle('date-invalid', !!invalid);
+}
+function validatePeriodRow(row) {
+  const errors = [];
+  const rowNum = (Number(row.dataset.index) || 0) + 1;
+  const dateD = row.querySelector('input[name^="date_debut_"]');
+  const heurD = row.querySelector('input[name^="heure_debut_"]');
+  const dateF = row.querySelector('input[name^="date_fin_"]');
+  const heurF = row.querySelector('input[name^="heure_fin_"]');
+  [dateD, heurD, dateF, heurF].forEach(el => setFieldInvalid(el, false));
+  const filled = [dateD?.value, heurD?.value, dateF?.value, heurF?.value].filter(Boolean).length;
+  if (filled === 0) return { valid: true, complete: false, start: null, end: null, errors: [] };
+  if (filled < 4) {
+    if (!dateD?.value) setFieldInvalid(dateD, true);
+    if (!heurD?.value) setFieldInvalid(heurD, true);
+    if (!dateF?.value) setFieldInvalid(dateF, true);
+    if (!heurF?.value) setFieldInvalid(heurF, true);
+    errors.push(`Période #${rowNum} : les 4 champs (date début, heure début, date fin, heure fin) sont obligatoires.`);
+    return { valid: false, complete: false, start: null, end: null, errors };
+  }
+  const dStart = parseFrenchDate(dateD.value);
+  if (!dStart) { setFieldInvalid(dateD, true); errors.push(`Période #${rowNum} : date de début "${dateD.value}" invalide. Attendu : JJ/MM/AAAA.`); }
+  const tStart = parseTime(heurD.value);
+  if (!tStart) { setFieldInvalid(heurD, true); errors.push(`Période #${rowNum} : heure de début "${heurD.value}" invalide. Attendu : HH:MM.`); }
+  const dEnd = parseFrenchDate(dateF.value);
+  if (!dEnd) { setFieldInvalid(dateF, true); errors.push(`Période #${rowNum} : date de fin "${dateF.value}" invalide. Attendu : JJ/MM/AAAA.`); }
+  const tEnd = parseTime(heurF.value);
+  if (!tEnd) { setFieldInvalid(heurF, true); errors.push(`Période #${rowNum} : heure de fin "${heurF.value}" invalide. Attendu : HH:MM.`); }
+  if (!dStart || !tStart || !dEnd || !tEnd) return { valid: false, complete: true, start: null, end: null, errors };
+  const start = new Date(dStart.getFullYear(), dStart.getMonth(), dStart.getDate(), tStart.hour, tStart.minute, 0);
+  const end = new Date(dEnd.getFullYear(), dEnd.getMonth(), dEnd.getDate(), tEnd.hour, tEnd.minute, 0);
+  if (end <= start) {
+    setFieldInvalid(dateF, true); setFieldInvalid(heurF, true); setFieldInvalid(dateD, true); setFieldInvalid(heurD, true);
+    errors.push(`Période #${rowNum} : la date+heure de fin doit être strictement postérieure à la date+heure de début.`);
+  }
+  if (DATA_RANGE.max && start > DATA_RANGE.max) {
+    setFieldInvalid(dateD, true); setFieldInvalid(heurD, true);
+    errors.push(`Période #${rowNum} : début postérieur à la dernière donnée disponible (${formatFrenchDate(DATA_RANGE.max)} ${formatTime(DATA_RANGE.max)}).`);
+  }
+  if (DATA_RANGE.min && end < DATA_RANGE.min) {
+    setFieldInvalid(dateF, true); setFieldInvalid(heurF, true);
+    errors.push(`Période #${rowNum} : fin antérieure à la première donnée disponible (${formatFrenchDate(DATA_RANGE.min)} ${formatTime(DATA_RANGE.min)}).`);
+  }
+  if (DATA_RANGE.max && end > DATA_RANGE.max) {
+    setFieldInvalid(dateF, true); setFieldInvalid(heurF, true);
+    errors.push(`Période #${rowNum} : fin postérieure à la dernière donnée disponible (${formatFrenchDate(DATA_RANGE.max)} ${formatTime(DATA_RANGE.max)}).`);
+  }
+  if (DATA_RANGE.min && start < DATA_RANGE.min) {
+    setFieldInvalid(dateD, true); setFieldInvalid(heurD, true);
+    errors.push(`Période #${rowNum} : début antérieur à la première donnée disponible (${formatFrenchDate(DATA_RANGE.min)} ${formatTime(DATA_RANGE.min)}).`);
+  }
+  return { valid: errors.length === 0, complete: true, start, end, errors };
+}
+function rebuildIndices() {
+  const rows = document.querySelectorAll('.period-row');
+  let idx = 0;
+  rows.forEach(row => {
+    row.dataset.index = idx;
+    const title = row.querySelector('.row-title span');
+    if (title) title.textContent = `Période #${idx + 1}`;
+    const fields = [
+      ['date_debut_', 'date-debut-', 'Date de début'],
+      ['heure_debut_', 'heure-debut-', 'Heure de début'],
+      ['date_fin_', 'date-fin-', 'Date de fin'],
+      ['heure_fin_', 'heure-fin-', 'Heure de fin'],
+    ];
+    fields.forEach(([prefix, idPrefix, _label]) => {
+      const el = row.querySelector(`input[name^="${prefix}"]`);
+      if (el) {
+        el.name = `${prefix}${idx}`;
+        el.id = `${idPrefix}${idx}`;
+        const l = el.closest('.input-wrap')?.querySelector('label');
+        if (l) l.htmlFor = el.id;
+      }
+    });
+    idx++;
+  });
+  periodIndex = idx;
+}
+function createPeriodRow() {
+  const rows = $('period-rows');
+  const div = document.createElement('div');
+  div.className = 'period-row';
+  div.dataset.index = periodIndex;
+  const idx = periodIndex;
+  div.innerHTML = `
+    <div style="grid-column: 1 / -1;">
+      <div class="row-title"><span>Période #${idx + 1}</span><span class="muted" style="font-weight:500;text-transform:none;letter-spacing:0;font-size:12px;">Format : JJ/MM/AAAA + HH:MM</span></div>
+    </div>
+    <div class="input-wrap">
+      <div class="field-header"><label for="date-debut-${idx}">Date de début</label><span class="hint-tooltip" data-tip="Obligatoire. Format JJ/MM/AAAA. Exemple : 10/09/2026">?</span></div>
+      <input id="date-debut-${idx}" name="date_debut_${idx}" type="text" placeholder="JJ/MM/AAAA" inputmode="numeric" maxlength="10" autocomplete="off">
+      <div class="format-hint">Ex. 10/09/2026</div>
+    </div>
+    <div class="input-wrap">
+      <div class="field-header"><label for="heure-debut-${idx}">Heure de début</label><span class="hint-tooltip" data-tip="Obligatoire. Format 24h HH:MM. Exemple : 08:00">?</span></div>
+      <input id="heure-debut-${idx}" name="heure_debut_${idx}" type="text" placeholder="HH:MM" inputmode="numeric" maxlength="5" autocomplete="off">
+      <div class="format-hint">Ex. 08:00 (session Londres)</div>
+    </div>
+    <div class="input-wrap">
+      <div class="field-header"><label for="date-fin-${idx}">Date de fin</label><span class="hint-tooltip" data-tip="Obligatoire. Doit être strictement postérieure à la date+heure de début.">?</span></div>
+      <input id="date-fin-${idx}" name="date_fin_${idx}" type="text" placeholder="JJ/MM/AAAA" inputmode="numeric" maxlength="10" autocomplete="off">
+      <div class="format-hint">Ex. 10/09/2026</div>
+    </div>
+    <div class="input-wrap">
+      <div class="field-header"><label for="heure-fin-${idx}">Heure de fin</label><span class="hint-tooltip" data-tip="Obligatoire. Exemple : 18:00 (couverture Londres + début NY)">?</span></div>
+      <input id="heure-fin-${idx}" name="heure_fin_${idx}" type="text" placeholder="HH:MM" inputmode="numeric" maxlength="5" autocomplete="off">
+      <div class="format-hint">Ex. 18:00</div>
+    </div>
+    <div class="remove-wrap" style="padding-bottom:6px;">
+      <button type="button" class="remove-row danger" style="background:var(--error);color:white;border:none;padding:6px 10px;border-radius:4px;cursor:pointer;font-weight:600;">Retirer</button>
+    </div>
+  `;
+  rows.appendChild(div);
+  periodIndex++;
+  updateRemoveButtons();
+  attachValidators(div);
+}
+$('add-period').addEventListener('click', () => createPeriodRow());
+$('fill-example').addEventListener('click', () => {
+  const firstRow = document.querySelector('.period-row');
+  if (!firstRow) return;
+  const dMin = DATA_RANGE.min ? new Date(DATA_RANGE.min) : null;
+  const start = dMin && dMin.getFullYear() > 2000 ? new Date(dMin.getFullYear(), dMin.getMonth(), dMin.getDate() + 2, 8, 0) : new Date(2026, 8, 10, 8, 0);
+  const end = new Date(start.getFullYear(), start.getMonth(), start.getDate(), 18, 0);
+  const dateD = firstRow.querySelector('input[name^="date_debut_"]');
+  const heurD = firstRow.querySelector('input[name^="heure_debut_"]');
+  const dateF = firstRow.querySelector('input[name^="date_fin_"]');
+  const heurF = firstRow.querySelector('input[name^="heure_fin_"]');
+  if (dateD) dateD.value = formatFrenchDate(start);
+  if (heurD) heurD.value = formatTime(start);
+  if (dateF) dateF.value = formatFrenchDate(end);
+  if (heurF) heurF.value = formatTime(end);
+  [dateD, heurD, dateF, heurF].forEach(el => setFieldInvalid(el, false));
+  validatePeriodRow(firstRow);
+  clearFormError();
+});
+$('clear-periods').addEventListener('click', () => {
+  const rows = document.querySelectorAll('.period-row');
+  rows.forEach((r, i) => {
+    if (i === 0) {
+      r.querySelectorAll('input').forEach(inp => { inp.value = ''; setFieldInvalid(inp, false); });
+    } else r.remove();
+  });
+  rebuildIndices();
+  updateRemoveButtons();
+  clearFormError();
+  clearFormSuccess();
+});
+function updateRemoveButtons() {
+  document.querySelectorAll('.remove-row').forEach(function(btn) {
+    btn.style.display = '';
+    btn.onclick = function() {
+      this.closest('.period-row').remove();
+      rebuildIndices();
+      updateRemoveButtons();
+    };
+  });
+  if (document.querySelectorAll('.period-row').length <= 1) {
+    const firstRemove = document.querySelector('.period-row .remove-row');
+    if (firstRemove) firstRemove.style.display = 'none';
+  }
+}
+function attachValidators(row) {
+  row.querySelectorAll('input[name^="date_debut_"], input[name^="date_fin_"]').forEach(el => {
+    el.addEventListener('input', () => { maskDateInput(el); });
+    el.addEventListener('blur', () => { validatePeriodRow(row); });
+  });
+  row.querySelectorAll('input[name^="heure_debut_"], input[name^="heure_fin_"]').forEach(el => {
+    el.addEventListener('input', () => { maskTimeInput(el); });
+    el.addEventListener('blur', () => { validatePeriodRow(row); });
+  });
+}
+document.querySelectorAll('.period-row').forEach(attachValidators);
+updateRemoveButtons();
+function showFormError(htmlMsg) {
+  const el = $('form-error');
+  el.innerHTML = htmlMsg;
+  el.style.display = 'block';
+}
+function clearFormError() {
+  const el = $('form-error');
+  el.innerHTML = '';
+  el.style.display = 'none';
+}
+function showFormSuccess(msg) {
+  const el = $('form-success');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+function clearFormSuccess() {
+  const el = $('form-success');
+  el.textContent = '';
+  el.style.display = 'none';
+}
+
+/* ==========================================================
+   3. SOUMISSION FORMULAIRE -> APPEL AJAX -> RENDU DIRECT
+========================================================== */
+$('backtest-form').addEventListener('submit', async (ev) => {
+  ev.preventDefault();
+  clearFormError();
+  clearFormSuccess();
+  const rows = document.querySelectorAll('.period-row');
+  let validCount = 0;
+  const allErrors = [];
+  rows.forEach(row => {
+    const r = validatePeriodRow(row);
+    if (!r.complete) return;
+    if (r.valid) validCount++;
+    allErrors.push(...r.errors);
+  });
+  if (allErrors.length) {
+    const html = `Veuillez corriger les erreurs suivantes avant de lancer le backtest :<ul>${allErrors.map(e => `<li>${e}</li>`).join('')}</ul>`;
+    showFormError(html);
+    return;
+  }
+  if (validCount === 0) {
+    showFormError('Veuillez définir au moins une période complète et valide (date + heure de début et de fin).');
+    return;
+  }
+  showFormSuccess(`${validCount} période${validCount > 1 ? 's' : ''} valide${validCount > 1 ? 's' : ''}. Lancement du backtest...`);
+  const overlay = $('loading-overlay');
+  const loadingText = $('loading-text');
+  if (loadingText) loadingText.textContent = `Lancement de ${validCount} backtest${validCount > 1 ? 's' : ''} (filtrage précis des bougies M1 EUR/USD)...`;
+  overlay.classList.add('active');
+  const submitBtn = $('submit-btn');
+  submitBtn.disabled = true;
+
+  try {
+    const formData = new FormData($('backtest-form'));
+    formData.append('confirmed', '1');
+    const res = await fetch('/api/run-backtest-json', {
+      method: 'POST',
+      body: formData,
+    });
+    const json = await res.json();
+    if (!res.ok || !json.ok) {
+      overlay.classList.remove('active');
+      submitBtn.disabled = false;
+      showFormError(json.error || 'Erreur inconnue lors de l\'exécution du backtest.');
+      return;
+    }
+    const aggregated = computeAggregated(json.results);
+    renderAll(aggregated);
+    overlay.classList.remove('active');
+    submitBtn.disabled = false;
+    showFormSuccess('Backtest terminé. Résultats détaillés ci-dessous.');
+    $('section-summary').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  } catch (err) {
+    overlay.classList.remove('active');
+    submitBtn.disabled = false;
+    showFormError(`Erreur réseau : ${err.message || err}`);
+  }
+});
+
+/* ==========================================================
+   4. AGGREGATION MULTI-BACKTESTS
+========================================================== */
+function drawEquity(equityPoints) {
+  const canvas = $('equity-chart');
+  if (!canvas || !equityPoints || !equityPoints.length) return;
+  const ctx = canvas.getContext('2d');
+  const dpr = window.devicePixelRatio || 1;
+  const w = canvas.offsetWidth || canvas.width;
+  const h = 300;
+  canvas.width = w * dpr;
+  canvas.height = h * dpr;
+  canvas.style.height = h + 'px';
+  ctx.scale(dpr, dpr);
+  ctx.clearRect(0, 0, w, h);
+  const values = equityPoints.map(p => Number(p.balance));
+  const min = Math.min(...values), max = Math.max(...values);
+  const range = Math.max(max - min, 1);
+  const padL = 50, padR = 10, padT = 10, padB = 24;
+  const chartW = w - padL - padR;
+  const chartH = h - padT - padB;
+
+  ctx.strokeStyle = '#eef2f5';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 4; i++) {
+    const y = padT + (chartH * i / 4);
+    ctx.beginPath();
+    ctx.moveTo(padL, y);
+    ctx.lineTo(padL + chartW, y);
+    ctx.stroke();
+    const v = max - (range * i / 4);
+    ctx.fillStyle = '#65727e';
+    ctx.font = '11px system-ui';
+    ctx.textAlign = 'right';
+    ctx.fillText(v.toFixed(2) + ' $', padL - 4, y + 4);
+  }
+
+  const zeroLine = padT + chartH - ((values[0] - min) / range) * chartH;
+  ctx.strokeStyle = '#94a3b8';
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(padL, zeroLine);
+  ctx.lineTo(padL + chartW, zeroLine);
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  ctx.strokeStyle = '#176b87';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  equityPoints.forEach((p, i) => {
+    const x = padL + (i / Math.max(equityPoints.length - 1, 1)) * chartW;
+    const y = padT + chartH - ((Number(p.balance) - min) / range) * chartH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.stroke();
+
+  ctx.fillStyle = 'rgba(23,107,135,0.08)';
+  ctx.beginPath();
+  equityPoints.forEach((p, i) => {
+    const x = padL + (i / Math.max(equityPoints.length - 1, 1)) * chartW;
+    const y = padT + chartH - ((Number(p.balance) - min) / range) * chartH;
+    i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+  });
+  ctx.lineTo(padL + chartW, padT + chartH);
+  ctx.lineTo(padL, padT + chartH);
+  ctx.closePath();
+  ctx.fill();
+}
+
+function computeAggregated(results) {
+  const allTrades = [];
+  const daily = {};
+  let global_start = null, global_end = null;
+  let warehouseInfo = null;
+  let dataInfoList = [];
+
+  results.forEach(r => {
+    (r.trades || []).forEach(t => {
+      allTrades.push(t);
+      const day = (t.time || '').slice(0, 10);
+      const d = daily[day] || { trades: 0, pnl: 0 };
+      d.trades++;
+      d.pnl += Number(t.net_pnl || 0);
+      daily[day] = d;
+    });
+    if (r.source_start && (!global_start || r.source_start < global_start)) global_start = r.source_start;
+    if (r.source_end && (!global_end || r.source_end > global_end)) global_end = r.source_end;
+    if (!warehouseInfo && r.warehouse_analysis) warehouseInfo = r.warehouse_analysis;
+    if (r.data_analysis) dataInfoList.push(r.data_analysis);
+  });
+  allTrades.sort((a, b) => String(a.time).localeCompare(String(b.time)));
+  const sortedDays = Object.keys(daily).sort();
+  sortedDays.forEach(d => { daily[d].pnl = Math.round(daily[d].pnl * 100) / 100; });
+
+  const initBalance = results[0]?.metrics?.initial_balance ?? 100;
+  let balance = initBalance, peak = initBalance, equity = [], wins = 0, losses = 0, totalProfit = 0, totalLoss = 0;
+  let buyCount = 0, sellCount = 0;
+  const durations = [];
+  let best = null, worst = null;
+  const tradedDays = new Set();
+
+  allTrades.forEach(t => {
+    const pnl = Number(t.net_pnl || 0);
+    balance = Math.round((balance + pnl) * 100) / 100;
+    peak = Math.max(peak, balance);
+    equity.push({ time: t.exit_time || t.time, balance, drawdown: Math.round((balance - peak) * 100) / 100 });
+    if (pnl > 0) { wins++; totalProfit += pnl; } else if (pnl < 0) { losses++; totalLoss += Math.abs(pnl); }
+    if (t.side === 'BUY') buyCount++; else if (t.side === 'SELL') sellCount++;
+    if (t.duration_minutes != null) durations.push(Number(t.duration_minutes));
+    if (!best || pnl > best.net_pnl) best = { time: t.time, side: t.side, net_pnl: pnl };
+    if (!worst || pnl < worst.net_pnl) worst = { time: t.time, side: t.side, net_pnl: pnl };
+    tradedDays.add((t.time || '').slice(0, 10));
+  });
+
+  const totalTrades = wins + losses;
+  const winRate = totalTrades ? Math.round(wins / totalTrades * 10000) / 100 : 0;
+  const profitFactor = totalLoss > 0 ? Math.round(totalProfit / totalLoss * 100) / 100 : 0;
+  const avgWin = wins ? totalProfit / wins : 0;
+  const avgLoss = losses ? totalLoss / losses : 0;
+  const expectancy = (winRate / 100 * avgWin) - ((1 - winRate / 100) * avgLoss);
+  const maxDD = equity.length ? Math.min(...equity.map(e => e.drawdown)) : 0;
+  const avgDur = durations.length ? (durations.reduce((a, b) => a + b, 0) / durations.length) : 0;
+
+  // Aggregate data_info from multi periods
+  let dataInfo = null;
+  if (dataInfoList.length) {
+    const first = dataInfoList[0];
+    const candlesTotal = dataInfoList.reduce((s, d) => s + (d.candles_total || 0), 0);
+    const missingVals = dataInfoList.reduce((s, d) => s + (d.missing_values_total || 0), 0);
+    const dups = dataInfoList.reduce((s, d) => s + (d.duplicate_count || 0), 0);
+    dataInfo = {
+      ...first,
+      period_start: global_start || first.period_start,
+      period_end: global_end || first.period_end,
+      candles_total: candlesTotal,
+      missing_values_total: missingVals,
+      duplicate_count: dups,
+      source: first.source,
+      quality_label: first.quality_label,
+      quality_score: first.quality_score,
+      warmup_candles: first.warmup_candles,
+      indicator_candles_used: first.indicator_candles_used,
+      validation_report: first.validation_report,
+    };
+  }
+
+  return {
+    metrics: {
+      initial_balance: initBalance,
+      final_balance: balance,
+      net_profit: Math.round((balance - initBalance) * 100) / 100,
+      return_percent: Math.round((balance - initBalance) / initBalance * 10000) / 100,
+      total_trades: totalTrades,
+      buy_trades: buyCount,
+      sell_trades: sellCount,
+      winning_trades: wins,
+      losing_trades: losses,
+      win_rate: winRate,
+      profit_factor: profitFactor,
+      expectancy: Math.round(expectancy * 100) / 100,
+      max_drawdown: Math.round(maxDD * 100) / 100,
+      max_drawdown_percent: Math.round(maxDD / initBalance * 10000) / 100,
+      total_profit: Math.round(totalProfit * 100) / 100,
+      total_loss: Math.round(totalLoss * 100) / 100,
+      avg_win: Math.round(avgWin * 100) / 100,
+      avg_loss: Math.round(avgLoss * 100) / 100,
+      avg_trade_duration_minutes: Math.round(avgDur * 10) / 10,
+      avg_trade_duration_text: formatDurationText(Math.round(avgDur * 60)),
+      best_trade: best,
+      worst_trade: worst,
+      days_traded: tradedDays.size,
+      days_without_trade: Math.max(0, sortedDays.length - tradedDays.size),
+      total_days_in_range: sortedDays.length,
+    },
+    equity_curve: equity,
+    daily_results: daily,
+    trades: allTrades,
+    source_start: global_start || results[0]?.source_start || '-',
+    source_end: global_end || results[results.length - 1]?.source_end || '-',
+    runs_count: results.length,
+    data_analysis: dataInfo,
+    warehouse_analysis: warehouseInfo,
+  };
+}
+
+function formatDurationText(seconds) {
+  const s = Math.max(0, Math.round(seconds || 0));
+  if (s < 60) return s + ' s';
+  if (s < 3600) {
+    const m = Math.floor(s / 60), r = s % 60;
+    return r ? `${m} min ${r} s` : `${m} min`;
+  }
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+  return `${h} h ${m} min`;
+}
+
+/* ==========================================================
+   5. RENDU COMPLET (appelé après chaque backtest AJAX ou au chargement si LAST_RESULT)
+========================================================== */
+function renderAll(r) {
+  renderSummary(r);
+  renderEquity(r);
+  renderTrades(r);
+  renderDataUsed(r);
+  renderWarehouse(r);
+  // Show sections
+  ['section-summary','section-equity','section-trades','section-data-used','section-warehouse'].forEach(id => $(id).classList.remove('hidden-initial'));
+}
+
+/* ---- Summary global ---- */
+function renderSummary(r) {
+  const m = r.metrics || {};
+  $('summary-period').textContent = `(${r.source_start || '-'} → ${r.source_end || '-'})`;
+  const cards = [
+    { label: 'Capital initial', value: fmtMoney(m.initial_balance).replace('+',''), sub: '', cls: '' },
+    { label: 'Capital final', value: fmtMoney(m.final_balance).replace('+',''), sub: `Rendement ${fmtNum(m.return_percent)} %`, cls: (m.net_profit || 0) >= 0 ? 'positive' : 'negative' },
+    { label: 'Profit net', value: fmtMoney(m.net_profit), sub: `${m.total_profit ? '+$'+m.total_profit.toFixed(2) : ''} gagnés / ${m.total_loss ? '-$'+m.total_loss.toFixed(2) : ''} perdus`, cls: (m.net_profit || 0) >= 0 ? 'positive' : 'negative' },
+    { label: 'Total trades', value: String(m.total_trades || 0), sub: `${m.buy_trades || 0} BUY · ${m.sell_trades || 0} SELL`, cls: '' },
+    { label: 'Trades gagnants', value: String(m.winning_trades || 0), sub: `Trades perdants : ${m.losing_trades || 0}`, cls: 'positive' },
+    { label: 'Trades perdants', value: String(m.losing_trades || 0), sub: '', cls: 'negative' },
+    { label: 'Win Rate', value: `${fmtNum(m.win_rate)} %`, sub: `Expectancy ${fmtMoney(m.expectancy)} / trade`, cls: (m.win_rate || 0) >= 50 ? 'positive' : 'negative' },
+    { label: 'Profit Factor', value: fmtNum(m.profit_factor, 2), sub: (m.profit_factor || 0) >= 1.5 ? 'Bon ratio' : (m.profit_factor || 0) >= 1 ? 'Acceptable' : 'À améliorer', cls: (m.profit_factor || 0) >= 1 ? 'positive' : 'negative' },
+    { label: 'Expectancy', value: fmtMoney(m.expectancy), sub: 'Résultat espéré par trade', cls: (m.expectancy || 0) >= 0 ? 'positive' : 'negative' },
+    { label: 'Drawdown maximum', value: fmtMoney(m.max_drawdown), sub: `${fmtNum(m.max_drawdown_percent)} % du capital`, cls: 'negative' },
+    { label: 'Gain moyen', value: fmtMoney(m.avg_win), sub: '', cls: 'positive' },
+    { label: 'Perte moyenne', value: fmtMoney(-(m.avg_loss || 0)), sub: '', cls: 'negative' },
+    { label: 'Durée moy. trade', value: m.avg_trade_duration_text || '0 s', sub: `${fmtNum(m.avg_trade_duration_minutes, 1)} minutes`, cls: '' },
+    { label: 'Meilleur trade', value: m.best_trade ? fmtMoney(m.best_trade.net_pnl) : '-', sub: m.best_trade ? `${m.best_trade.side} · ${(m.best_trade.time || '').slice(0,16)}` : '', cls: 'positive' },
+    { label: 'Pire trade', value: m.worst_trade ? fmtMoney(m.worst_trade.net_pnl) : '-', sub: m.worst_trade ? `${m.worst_trade.side} · ${(m.worst_trade.time || '').slice(0,16)}` : '', cls: 'negative' },
+    { label: 'Jours tradés', value: String(m.days_traded || 0), sub: `${m.days_without_trade || 0} jour(s) sans trade (sur ${m.total_days_in_range || 0})`, cls: '' },
+  ];
+  $('summary-grid').innerHTML = cards.map(c => `
+    <div class="summary-card">
+      <div class="label">${c.label}</div>
+      <div class="value ${c.cls}">${c.value}</div>
+      ${c.sub ? `<div class="sub">${c.sub}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+/* ---- Equity curve ---- */
+function renderEquity(r) {
+  if (r.equity_curve && r.equity_curve.length) {
+    setTimeout(() => drawEquity(r.equity_curve), 50);
+  }
+}
+
+/* ---- Trade history (table + filters + modal) ---- */
+let CURRENT_TRADES = [];
+let CURRENT_FILTER = 'all';
+let EXPANDED_JUSTIFY = new Set();
+let CURRENT_VIEW_MODE = 'in_memory';
+let DB_HISTORY_TOTAL = 0;
+const DB_HISTORY_PAGE_SIZE = 500;
+
+function updatePersistentHistoryControls() {
+  const wrap = $('db-load-more-wrap');
+  const button = $('btn-load-more-db-history');
+  if (!wrap || !button) return;
+  const hasMore = CURRENT_VIEW_MODE === 'db_persistent' && CURRENT_TRADES.length < DB_HISTORY_TOTAL;
+  wrap.style.display = hasMore ? 'block' : 'none';
+  button.disabled = !hasMore;
+  if (hasMore) {
+    button.textContent = `Charger les ${Math.min(DB_HISTORY_PAGE_SIZE, DB_HISTORY_TOTAL - CURRENT_TRADES.length)} enregistrements suivants`;
+  }
+}
+
+function scoreClass(s) {
+  if (s >= 7) return 'score-7-8';
+  if (s >= 5) return 'score-5-6';
+  return 'score-low';
+}
+
+function _setSyncStatus(state, text, count) {
+  const el = $('sync-status');
+  el.classList.remove('synced', 'unsynced', 'error', 'loading');
+  el.classList.add(state);
+  $('sync-status-text').textContent = text || '';
+  const pill = $('sync-count');
+  if (pill) pill.textContent = Number.isFinite(count) ? String(count) : '';
+  const btn = $('btn-sync-trades');
+  if (btn) btn.disabled = state === 'loading';
+}
+
+function _countUnsynced() {
+  return CURRENT_TRADES.filter(t => !t.id).length;
+}
+
+async function _autoSyncIfNeeded() {
+  const unsynced = _countUnsynced();
+  if (!CURRENT_TRADES.length) {
+    _setSyncStatus('unsynced', 'Aucun trade à synchroniser', 0);
+    return;
+  }
+  if (unsynced === 0 && CURRENT_TRADES[0]?.id) {
+    _setSyncStatus('synced', `Synchronisé · ${CURRENT_TRADES.length} trade(s)`, CURRENT_TRADES.length);
+    return;
+  }
+  _setSyncStatus('unsynced', `${unsynced} trade(s) non sauvegardé(s)`, unsynced);
+  try {
+    const res = await syncCurrentTradesToDb({ silent: true });
+    if (res && res.ok) {
+      _setSyncStatus('synced', `Synchronisé · ${CURRENT_TRADES.length} trade(s)`, CURRENT_TRADES.length);
+    }
+  } catch (_) {
+    _setSyncStatus('error', 'Erreur auto-sync', unsynced);
+  }
+}
+
+async function syncCurrentTradesToDb(opts = {}) {
+  if (!CURRENT_TRADES.length) {
+    if (!opts.silent) alert('Aucun trade à sauvegarder.');
+    return { ok: false };
+  }
+  const unsynced = CURRENT_TRADES.filter(t => !t.id);
+  if (!unsynced.length && !opts.force) {
+    _setSyncStatus('synced', `Tous les ${CURRENT_TRADES.length} trades sont déjà enregistrés`, CURRENT_TRADES.length);
+    return { ok: true, inserted: 0 };
+  }
+  _setSyncStatus('loading', 'Sauvegarde dans PostgreSQL…', unsynced.length);
+  try {
+    const res = await fetch('/api/trade-history/save-batch', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        trades: unsynced.length ? unsynced : CURRENT_TRADES,
+        source: CURRENT_VIEW_MODE === 'db_persistent' ? 'db_view' : 'backtest',
+      }),
+    });
+    const data = await res.json();
+    if (data.ok) {
+      const ids = data.inserted_ids || [];
+      let idPtr = 0;
+      CURRENT_TRADES.forEach(t => {
+        if (!t.id && idPtr < ids.length) t.id = ids[idPtr++];
+      });
+      _setSyncStatus('synced', `${data.inserted_count || 0} trade(s) enregistrés`, CURRENT_TRADES.length);
+      refreshTradeTable();
+      return data;
+    }
+    _setSyncStatus('error', data.error || 'Erreur sauvegarde', unsynced.length);
+    if (!opts.silent) alert(`Erreur : ${data.error}`);
+    return { ok: false };
+  } catch (err) {
+    _setSyncStatus('error', 'Erreur réseau', unsynced.length);
+    if (!opts.silent) alert(`Erreur réseau : ${err}`);
+    return { ok: false };
+  }
+}
+
+async function loadPersistentHistoryFromDb(append = false) {
+  CURRENT_VIEW_MODE = 'db_persistent';
+  const offset = append ? CURRENT_TRADES.length : 0;
+  _setSyncStatus('loading', 'Chargement de l\'historique PostgreSQL…', offset);
+  try {
+    const res = await fetch(`/api/trade-history?limit=${DB_HISTORY_PAGE_SIZE}&offset=${offset}`, { cache: 'no-store' });
+    const data = await res.json();
+    if (!data.ok) {
+      _setSyncStatus('error', data.error || 'Erreur chargement DB', 0);
+      alert(`Erreur : ${data.error}`);
+      return;
+    }
+    const fetchedTrades = data.trades || [];
+    CURRENT_TRADES = append ? CURRENT_TRADES.concat(fetchedTrades) : fetchedTrades;
+    DB_HISTORY_TOTAL = data.total || CURRENT_TRADES.length;
+    const info = $('db-history-info');
+    if (info) {
+      info.textContent = `Historique PostgreSQL · ${CURRENT_TRADES.length}/${DB_HISTORY_TOTAL} enregistrement(s) chargés`;
+    }
+    $('trades-count').textContent = `· ${CURRENT_TRADES.length}/${DB_HISTORY_TOTAL} trade(s) · Vue "historique persistant"`;
+    _setSyncStatus('synced', `Historique DB chargé · ${CURRENT_TRADES.length}`, CURRENT_TRADES.length);
+    if (!append) EXPANDED_JUSTIFY.clear();
+    updatePersistentHistoryControls();
+    refreshTradeTable();
+  } catch (err) {
+    _setSyncStatus('error', 'Erreur réseau', 0);
+    alert(`Erreur réseau : ${err}`);
+  }
+}
+
+async function deleteTradeAt(index) {
+  const t = CURRENT_TRADES[index];
+  if (!t) return;
+  const confirmMsg = t.id
+    ? `Supprimer le trade #${index + 1} (${t.side || t.decision_type} · ${(t.entry_time || t.time || '').slice(0,16)}) de l'affichage ET de la base PostgreSQL ?`
+    : `Supprimer le trade #${index + 1} de l'affichage uniquement (il n'a pas d'ID PostgreSQL) ?`;
+  if (!confirm(confirmMsg)) return;
+
+  if (t.id) {
+    try {
+      const res = await fetch(`/api/trade-history/${encodeURIComponent(t.id)}`, { method: 'DELETE' });
+      const data = await res.json();
+      if (!data.ok) {
+        alert(`Erreur suppression DB : ${data.error}`);
+        return;
+      }
+      if (CURRENT_VIEW_MODE === 'db_persistent' && Number.isFinite(Number(data.remaining))) {
+        DB_HISTORY_TOTAL = Number(data.remaining);
+      }
+    } catch (err) {
+      alert(`Erreur réseau : ${err}`);
+      return;
+    }
+  }
+  CURRENT_TRADES.splice(index, 1);
+  EXPANDED_JUSTIFY.delete(index);
+  $('trades-count').textContent = `· ${CURRENT_TRADES.length} trade(s)`;
+  const unsynced = _countUnsynced();
+  if (!unsynced && CURRENT_TRADES.length && CURRENT_TRADES[0]?.id) {
+    _setSyncStatus('synced', `Synchronisé · ${CURRENT_TRADES.length}`, CURRENT_TRADES.length);
+  } else if (CURRENT_TRADES.length) {
+    _setSyncStatus('unsynced', `${unsynced} non sauvegardé(s)`, unsynced);
+  } else {
+    _setSyncStatus('unsynced', 'Aucun trade', 0);
+  }
+  updatePersistentHistoryControls();
+  refreshTradeTable();
+}
+
+function _toggleJustify(i) {
+  if (EXPANDED_JUSTIFY.has(i)) EXPANDED_JUSTIFY.delete(i);
+  else EXPANDED_JUSTIFY.add(i);
+  refreshTradeTable();
+}
+
+function _buildJustificationExpandHtml(t, i) {
+  const js = t.justification_struct || _buildJustificationStructInline(t);
+  const decision = (t.side || t.decision_type || 'NOT_TRADE').toUpperCase();
+  const score = t.score ?? js?.score ?? 0;
+  const required = js?.score_required ?? 7;
+  const maxScore = js?.score_total_max ?? 8;
+  const scoreCls = score >= 7 ? 'ok' : score >= 5 ? 'warn' : 'bad';
+  const rr = js?.risk_reward?.ratio_rr;
+  const sc = js?.score_components || {};
+  const sg = js?.signals || {};
+  const ind = js?.indicators_snapshot || {};
+  const rrInfo = js?.risk_reward || {};
+  const html = `
+    <td colspan="20">
+      <div class="justify-inner">
+        <div class="decision-banner ${decision}">
+          <span class="badge">${decision === 'NOT_TRADE' ? '⏸ PAS DE TRADE' : (decision === 'BUY' ? '📈 ACHAT' : '📉 VENTE')}</span>
+          <span class="score-big ${scoreCls}">${score}<span class="muted" style="font-size:13px;font-weight:500;">/${maxScore}</span></span>
+          <span class="muted" style="font-size:12px;">(seuil ${required})</span>
+          <div class="meta">
+            ${t.id ? `<div>ID PostgreSQL : <strong>#${t.id}</strong></div>` : ''}
+            <div>Horodatage : <strong>${(t.entry_time || t.time || '').slice(0,19)}</strong></div>
+            ${rr ? `<div>Risque/Rendement : <strong>${rr}</strong></div>` : ''}
+          </div>
+        </div>
+        <div class="justify-grid">
+          <div class="justify-card">
+            <h5>🎯 Décomposition du score</h5>
+            ${['trend','pullback','atr','rsi','macd','candle'].map(k => {
+              const item = sc[k] || {};
+              const pts = item.points ?? 0;
+              const max = item.max ?? (k === 'trend' || k === 'pullback' ? 2 : 1);
+              const label = { trend:'Tendance EMA', pullback:'Zone pullback', atr:'Volatilité ATR', rsi:'RSI 14', macd:'MACD Hist', candle:'Bougie conf.' }[k];
+              return `<div class="comp"><span class="k">${label}</span><span class="v pts">+${pts}/${max}</span></div>`;
+            }).join('')}
+            <div class="comp" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px;">
+              <span class="k"><strong>Total</strong></span>
+              <span class="v pts"><strong>${score}/${maxScore}</strong></span>
+            </div>
+          </div>
+          <div class="justify-card">
+            <h5>🔍 Interprétation des signaux</h5>
+            ${['trend','pullback','volatility','rsi','macd','candle'].map(k => {
+              const txt = sg[k];
+              const label = { trend:'Tendance', pullback:'Pullback', volatility:'Volatilité', rsi:'RSI', macd:'MACD', candle:'Bougie' }[k];
+              return `<div class="comp"><span class="k">${label}</span><span class="v" style="font-size:11px;max-width:60%;text-align:right;">${txt ? String(txt).slice(0,60) : '—'}</span></div>`;
+            }).join('')}
+          </div>
+          <div class="justify-card">
+            <h5>📊 Instantané indicateurs</h5>
+            ${Object.entries(ind).map(([k,v]) => {
+              const label = { ema_9:'EMA 9', ema_21:'EMA 21', ema_50:'EMA 50', rsi_14:'RSI 14', macd:'MACD', macd_signal:'Signal MACD', macd_hist:'MACD Hist', atr_14:'ATR 14', volume_ratio:'Volume relatif', session:'Session' }[k] || k;
+              const d = Number(v);
+              return `<div class="comp"><span class="k">${label}</span><span class="v">${Number.isFinite(d) ? fmtNum(d, k==='rsi_14'?1:5) : '—'}</span></div>`;
+            }).join('')}
+          </div>
+          <div class="justify-card">
+            <h5>⚖️ Gestion du risque</h5>
+            <div class="comp"><span class="k">Stop Loss</span><span class="v">${fmtNum(rrInfo.sl,5)} · <span class="pnl-loss">${fmtNum(-(rrInfo.sl_dollar||0),2)} $</span></span></div>
+            <div class="comp"><span class="k">Take Profit</span><span class="v">${fmtNum(rrInfo.tp,5)} · <span class="pnl-win">${fmtMoney(rrInfo.tp_dollar||0)}</span></span></div>
+            <div class="comp"><span class="k">Ratio R:R</span><span class="v">${rr ? `<strong>${rr}</strong>` : '—'}</span></div>
+            <div class="comp"><span class="k">Lot / Volume</span><span class="v">${fmtNum(t.lot || t.volume || 0,2)}</span></div>
+            ${t.outcome ? `
+              <div class="comp" style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px;">
+                <span class="k">Issue</span><span class="v">${t.outcome === 'WIN' ? '<span class="pnl-win">TP / Gagnant</span>' : '<span class="pnl-loss">SL / Perdant</span>'}</span>
+              </div>
+              <div class="comp"><span class="k">P&L Net</span><span class="v ${t.outcome==='WIN'?'pnl-win':'pnl-loss'}">${fmtMoney(t.net_pnl)}</span></div>
+            ` : ''}
+          </div>
+        </div>
+        <div class="why-full">${(js.why_text || t.why_trade || '—').replace(/</g,'&lt;')}</div>
+      </div>
+    </td>
+  `;
+  return `<tr class="justify-expand" data-just-for="${i}">${html}</tr>`;
+}
+
+function _buildJustificationStructInline(t) {
+  const sb = t.score_breakdown || {};
+  const sd = t.signal_details || {};
+  return {
+    decision: (t.side || t.decision_type || 'NOT_TRADE').toUpperCase(),
+    score: t.score,
+    score_required: 7,
+    score_total_max: (sb._total && sb._total.max) || 8,
+    score_components: {
+      trend: sb.trend, pullback: sb.pullback, atr: sb.atr,
+      rsi: sb.rsi, macd: sb.macd, candle: sb.candle,
+    },
+    signals: {
+      trend: sd.trend, pullback: sd.pullback, volatility: sd.volatility,
+      rsi: sd.rsi, macd: sd.macd, candle: sd.candle,
+    },
+    indicators_snapshot: {
+      ema_9: t.ema_9, ema_21: t.ema_21, ema_50: t.ema_50,
+      rsi_14: t.rsi, macd: t.macd, macd_hist: t.macd_hist, atr_14: t.atr,
+    },
+    risk_reward: {
+      sl: t.sl, tp: t.tp, sl_dollar: t.sl_dollar, tp_dollar: t.tp_dollar,
+      ratio_rr: (t.tp_dollar && t.sl_dollar > 0) ? round2(t.tp_dollar / t.sl_dollar) : null,
+    },
+    why_text: t.why_trade,
+  };
+}
+function round2(n) { return Math.round(Number(n)*100)/100; }
+
+function renderTrades(r) {
+  CURRENT_TRADES = r.trades || [];
+  CURRENT_VIEW_MODE = 'in_memory';
+  $('trades-count').textContent = `· ${CURRENT_TRADES.length} trade(s) · ${r.runs_count || 1} période(s)`;
+  EXPANDED_JUSTIFY.clear();
+
+  // Toolbar buttons
+  const syncBtn = $('btn-sync-trades');
+  if (syncBtn) syncBtn.onclick = () => syncCurrentTradesToDb();
+  const loadBtn = $('btn-load-db-history');
+  if (loadBtn) loadBtn.onclick = () => loadPersistentHistoryFromDb();
+  const loadMoreBtn = $('btn-load-more-db-history');
+  if (loadMoreBtn) loadMoreBtn.onclick = () => loadPersistentHistoryFromDb(true);
+
+  refreshTradeTable();
+  updatePersistentHistoryControls();
+
+  // Filter buttons
+  document.querySelectorAll('#trades-filters .filter-btn').forEach(btn => {
+    btn.onclick = () => {
+      document.querySelectorAll('#trades-filters .filter-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      CURRENT_FILTER = btn.dataset.filter;
+      refreshTradeTable();
+    };
+  });
+
+  // Auto-sync (sans alerte)
+  setTimeout(() => _autoSyncIfNeeded(), 80);
+}
+
+function refreshTradeTable() {
+  const tBody = $('trade-rows');
+  const all = CURRENT_TRADES;
+  let filtered = all;
+  if (CURRENT_FILTER === 'BUY' || CURRENT_FILTER === 'SELL') filtered = all.filter(t => (t.side || '').toUpperCase() === CURRENT_FILTER);
+  else if (CURRENT_FILTER === 'WIN') filtered = all.filter(t => t.outcome === 'WIN');
+  else if (CURRENT_FILTER === 'LOSS') filtered = all.filter(t => t.outcome === 'LOSS');
+  else if (CURRENT_FILTER === 'NOT_TRADE') filtered = all.filter(t => (t.decision_type || (t.side || 'NOT_TRADE')).toUpperCase() === 'NOT_TRADE');
+
+  if (!filtered.length) {
+    tBody.innerHTML = `<tr><td colspan="20" style="text-align:center;padding:18px;color:var(--muted);">Aucun enregistrement ${CURRENT_FILTER !== 'all' ? 'correspondant au filtre "' + CURRENT_FILTER + '"' : ''}</td></tr>`;
+    return;
+  }
+
+  const rows = [];
+  filtered.forEach((t) => {
+    const i = all.indexOf(t);
+    const isWin = t.outcome === 'WIN';
+    const isBuy = (t.side || '').toUpperCase() === 'BUY';
+    const isNotTrade = (t.decision_type || (t.side || '')).toUpperCase() === 'NOT_TRADE';
+    const entryDT = new Date(t.entry_time || t.time);
+    const exitDT = new Date(t.exit_time || t.time);
+    const decision = (t.side || t.decision_type || 'NOT_TRADE').toUpperCase();
+    const expanded = EXPANDED_JUSTIFY.has(i);
+
+    rows.push(`
+      <tr data-trade-index="${i}">
+        <td>
+          <strong>#${i + 1}</strong>
+          ${t.id ? `<span class="trade-db-id">ID #${t.id}</span>` : ''}
+        </td>
+        <td>${t.entry_date || entryDT.toISOString().slice(0,10)}</td>
+        <td>${t.entry_hour || entryDT.toTimeString().slice(0,8)}</td>
+        <td>${isNotTrade ? '—' : (t.exit_hour || exitDT.toTimeString().slice(0,8))}</td>
+        <td>${isNotTrade ? '—' : (t.duration_text || formatDurationText(t.duration_seconds || 0))}</td>
+        <td class="${isBuy ? 'side-buy' : (decision==='SELL'?'side-sell':'')}">${t.side || (isNotTrade ? '<span class="muted">—</span>' : t.decision_type)}</td>
+        <td>${fmtNum(t.entry, 5)}</td>
+        <td>${isNotTrade ? '—' : fmtNum(t.exit, 5)}</td>
+        <td>${fmtNum(t.sl, 5)}</td>
+        <td>${fmtNum(t.tp, 5)}</td>
+        <td>${fmtNum(t.atr, 5)}</td>
+        <td>${fmtNum(t.rsi, 1)}</td>
+        <td><span class="score-pill ${scoreClass(t.score)}">${t.score ?? 0}/8</span></td>
+        <td>${isNotTrade ? '—' : fmtMoney(t.price_pnl)}</td>
+        <td>${isNotTrade ? '—' : fmtNum(-(t.commission || 0), 2)}</td>
+        <td>${isNotTrade ? '—' : fmtNum(-(t.slippage || 0), 2)}</td>
+        <td class="${isWin ? 'pnl-win' : (t.outcome==='LOSS'?'pnl-loss':'')}">${isNotTrade ? '—' : fmtMoney(t.net_pnl)}</td>
+        <td><strong>${isNotTrade ? '—' : fmtNum(t.balance, 2).replace('+','')} $</strong></td>
+        <td>${isNotTrade ? '<span class="muted">⏸ pas trade</span>' : (isWin ? '<span class="badge-win">TP / Win</span>' : '<span class="badge-loss">SL / Loss</span>')}</td>
+        <td>
+          <div class="row-actions">
+            <button type="button" class="btn-justify-row" title="Afficher la justification détaillée" data-justify="${i}">
+              ${expanded ? '▲' : '?'}
+            </button>
+            <button type="button" class="btn-delete-row" title="Supprimer cette ligne (affichage + DB)" data-delete="${i}">
+              ×
+            </button>
+          </div>
+        </td>
+      </tr>
+    `);
+    if (expanded) rows.push(_buildJustificationExpandHtml(t, i));
+  });
+
+  tBody.innerHTML = rows.join('');
+
+  // Delete buttons
+  tBody.querySelectorAll('button[data-delete]').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const idx = Number(btn.dataset.delete);
+      deleteTradeAt(idx);
+    });
+  });
+
+  // Justification toggle
+  tBody.querySelectorAll('button[data-justify]').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const idx = Number(btn.dataset.justify);
+      _toggleJustify(idx);
+    });
+  });
+
+  // Click rows (except on buttons) -> modal
+  tBody.querySelectorAll('tr[data-trade-index]').forEach(tr => {
+    tr.addEventListener('click', (ev) => {
+      if (ev.target.closest('button')) return;
+      const idx = Number(tr.dataset.tradeIndex);
+      openTradeModal(CURRENT_TRADES[idx]);
+    });
+  });
+}
+
+/* ---- Modal details ---- */
+function openTradeModal(t) {
+  if (!t) return;
+  const modal = $('trade-modal');
+  const isWin = t.outcome === 'WIN';
+  const isBuy = (t.side || '').toUpperCase() === 'BUY';
+  const decision = (t.side || t.decision_type || 'NOT_TRADE').toUpperCase();
+  const isNotTrade = decision === 'NOT_TRADE';
+  const idx = CURRENT_TRADES.indexOf(t);
+
+  $('modal-header').innerHTML = `
+    <h2>
+      ${isNotTrade
+        ? '<span class="badge-sell" style="background:var(--warn-bg);color:var(--warn);">⏸ PAS DE TRADE</span>'
+        : (isBuy ? '<span class="badge-buy">📈 BUY</span>' : '<span class="badge-sell">📉 SELL</span>')}
+      ${isNotTrade ? 'Décision' : `Trade #${idx + 1}`}
+      ${t.outcome === 'WIN' ? '<span class="badge-win">GAGNANT</span>' : (t.outcome === 'LOSS' ? '<span class="badge-loss">PERDANT</span>' : '')}
+      ${t.id ? `<span class="muted" style="font-weight:500;font-size:12px;">(PostgreSQL #${t.id})</span>` : ''}
+      <span class="muted" style="font-weight:400;font-size:14px;">${(t.entry_time || t.time || '').slice(0,16)}</span>
+    </h2>
+    <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+      ${t.id ? `<button type="button" class="toolbar-btn danger" id="modal-btn-delete">🗑 Supprimer (affichage + DB)</button>` : ''}
+      <button type="button" class="toolbar-btn" id="modal-btn-close-fermer">Fermer</button>
+    </div>
+  `;
+
+  const js = t.justification_struct || _buildJustificationStructInline(t);
+  const sb = t.score_breakdown || js?.score_components || {};
+  const sc = js?.score_components || sb;
+  const sg = js?.signals || t.signal_details || {};
+  const rr = js?.risk_reward || {};
+  const ind = js?.indicators_snapshot || {};
+
+  const pips = [];
+  ['trend','pullback','atr','rsi','macd','candle'].forEach((k) => {
+    const item = sc[k] || { points: 0, max: k === 'trend' || k === 'pullback' ? 2 : 1 };
+    const pts = item.points || 0;
+    const max = item.max || 1;
+    for (let j = 0; j < max; j++) pips.push(j < pts);
+  });
+  const score = t.score ?? js?.score ?? 0;
+  const maxScore = js?.score_total_max || 8;
+  const required = js?.score_required || 7;
+
+  $('modal-body').innerHTML = `
+    <div class="modal-section" style="grid-column: 1 / -1;">
+      <div class="decision-banner ${decision}">
+        <span class="badge">${decision === 'NOT_TRADE' ? '⏸ PAS DE TRADE' : (decision === 'BUY' ? '📈 ACHAT (BUY)' : '📉 VENTE (SELL)')}</span>
+        <span class="score-big ${score>=7?'ok':score>=5?'warn':'bad'}">${score}<span class="muted" style="font-size:14px;font-weight:500;">/${maxScore}</span></span>
+        <span class="muted" style="font-size:12px;">(seuil ${required} · ${score >= required ? '✅ décision VALIDÉE' : '❌ décision REFUSÉE'})</span>
+        <div class="meta">
+          ${t.id ? `<div>ID PostgreSQL : <strong>#${t.id}</strong></div>` : ''}
+          <div>Horodatage : <strong>${(t.entry_time || t.time || '').slice(0,19)}</strong></div>
+          ${rr.ratio_rr ? `<div>Ratio Risque/Rendement : <strong>${rr.ratio_rr}</strong></div>` : ''}
+          ${t.source ? `<div>Source : <strong>${t.source}</strong></div>` : ''}
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-section">
+      <h4>⏱ Exécution</h4>
+      <ul class="info-list">
+        <li><span>Date d'entrée</span><span>${t.entry_date || (new Date(t.entry_time || t.time)).toISOString().slice(0,10)}</span></li>
+        <li><span>Heure entrée</span><span>${t.entry_hour || (new Date(t.entry_time || t.time)).toTimeString().slice(0,8)}</span></li>
+        <li><span>Heure sortie</span><span>${isNotTrade ? '—' : (t.exit_hour || (new Date(t.exit_time)).toTimeString().slice(0,8))}</span></li>
+        <li><span>Durée</span><span>${isNotTrade ? '—' : (t.duration_text || formatDurationText(t.duration_seconds || 0))}</span></li>
+        <li><span>Durée exacte (s)</span><span>${isNotTrade ? '—' : (t.duration_seconds || 0)}</span></li>
+        <li><span>Direction / Décision</span><span class="${isBuy ? 'side-buy' : (decision==='SELL'?'side-sell':'')}">${decision}</span></li>
+      </ul>
+      <h4 style="margin-top:12px;">💰 Prix & niveaux</h4>
+      <ul class="info-list">
+        <li><span>Prix d'entrée</span><span>${fmtNum(t.entry, 5)}</span></li>
+        <li><span>Prix de sortie</span><span>${isNotTrade ? '—' : fmtNum(t.exit, 5)}</span></li>
+        <li><span>Stop Loss (1×ATR)</span><span>${fmtNum(t.sl, 5)}</span></li>
+        <li><span>SL ($)</span><span><span class="pnl-loss">${fmtNum(-(t.sl_dollar || rr.sl_dollar || 0), 2)} $</span></span></li>
+        <li><span>Take Profit (2×ATR)</span><span>${fmtNum(t.tp, 5)}</span></li>
+        <li><span>TP ($)</span><span><span class="pnl-win">${fmtMoney(t.tp_dollar || rr.tp_dollar || 0)}</span></span></li>
+        <li><span>Ratio R:R</span><span><strong>${rr.ratio_rr ? rr.ratio_rr : '—'}</strong></span></li>
+        <li><span>Lot / Volume</span><span>${fmtNum(t.lot || t.volume || 0, 2)}</span></li>
+      </ul>
+    </div>
+
+    <div class="modal-section">
+      <h4>🎯 Décomposition du score (${score}/${maxScore})</h4>
+      <div class="score-bar">${pips.map(on => `<div class="score-pip ${on ? 'on' : ''}"></div>`).join('')}</div>
+      <ul class="info-list">
+        ${['trend','pullback','atr','rsi','macd','candle'].map(k => {
+          const item = sc[k] || sb[k] || {};
+          const pts = item.points ?? 0;
+          const max = item.max ?? (k==='trend'||k==='pullback'?2:1);
+          const label = {trend:'Tendance EMA 9/21/50',pullback:'Zone pullback EMA',atr:'Volatilité (ATR 14)',rsi:'RSI 14',macd:'MACD Histogramme',candle:'Bougie de confirmation'}[k];
+          return `<li><span>${label}</span><span>+${pts}/${max}</span></li>`;
+        }).join('')}
+        <li style="border-top:1px dashed var(--line);margin-top:4px;padding-top:6px;"><span><strong>Score total</strong></span><span><strong>${score}/${maxScore}</strong></span></li>
+      </ul>
+      <h4 style="margin-top:12px;">🔍 Interprétation signaux</h4>
+      <ul class="info-list">
+        ${['trend','pullback','volatility','rsi','macd','candle'].map(k => {
+          const label = {trend:'Tendance',pullback:'Pullback',volatility:'Volatilité',rsi:'RSI',macd:'MACD',candle:'Bougie'}[k];
+          const txt = sg[k];
+          return `<li><span>${label}</span><span style="font-size:11px;text-align:right;max-width:55%;">${txt ? String(txt).slice(0,80) : '—'}</span></li>`;
+        }).join('')}
+      </ul>
+    </div>
+
+    <div class="modal-section">
+      <h4>📊 Indicateurs à l'entrée</h4>
+      <ul class="info-list">
+        ${Object.entries(ind).length ? Object.entries(ind).map(([k,v]) => {
+          const label = {ema_9:'EMA 9',ema_21:'EMA 21',ema_50:'EMA 50',rsi_14:'RSI 14',macd:'MACD',macd_signal:'Signal MACD',macd_hist:'MACD Hist',atr_14:'ATR 14',volume_ratio:'Volume relatif',session:'Session'}[k] || k;
+          const d = Number(v);
+          return `<li><span>${label}</span><span>${Number.isFinite(d) ? fmtNum(d, (k==='rsi_14'?1:5)) : '—'}</span></li>`;
+        }).join('') : `
+          <li><span>EMA 9</span><span>${fmtNum(t.ema_9, 5)}</span></li>
+          <li><span>EMA 21</span><span>${fmtNum(t.ema_21, 5)}</span></li>
+          <li><span>EMA 50</span><span>${fmtNum(t.ema_50, 5)}</span></li>
+          <li><span>ATR 14</span><span>${fmtNum(t.atr, 5)}</span></li>
+          <li><span>RSI 14</span><span>${fmtNum(t.rsi, 1)}</span></li>
+          <li><span>MACD</span><span>${fmtNum(t.macd, 5)}</span></li>
+          <li><span>MACD Hist</span><span>${fmtNum(t.macd_hist, 5)}</span></li>
+        `}
+      </ul>
+      ${!isNotTrade ? `
+        <h4 style="margin-top:12px;">💵 P&L & Balance</h4>
+        <ul class="info-list">
+          <li><span>Résultat brut</span><span>${fmtMoney(t.price_pnl)}</span></li>
+          <li><span>Commission</span><span>${fmtNum(-(t.commission || 0), 2)} $</span></li>
+          <li><span>Slippage</span><span>${fmtNum(-(t.slippage || 0), 2)} $</span></li>
+          <li><span><strong>Résultat net</strong></span><span class="${isWin ? 'pnl-win' : (t.outcome==='LOSS'?'pnl-loss':'')}" style="font-size:15px;">${fmtMoney(t.net_pnl)}</span></li>
+          <li><span>Balance avant</span><span>${fmtNum(t.balance_before, 2).replace('+','')} $</span></li>
+          <li><span>Balance après</span><span><strong>${fmtNum(t.balance, 2).replace('+','')} $</strong></span></li>
+        </ul>
+      ` : ''}
+    </div>
+
+    <div class="modal-section" style="grid-column: 1 / -1;">
+      <h4>🤔 Justification détaillée de la décision (${decision})</h4>
+      <div class="why-full">${(js.why_text || t.why_trade || '—').replace(/</g, '&lt;')}</div>
+    </div>
+
+    ${!isNotTrade ? `
+      <div class="modal-section" style="grid-column: 1 / -1;">
+        <h4>🔚 Pourquoi le trade est sorti ?</h4>
+        <div class="exit-block">${_formatExitBlock(t)}</div>
+      </div>
+    ` : ''}
+  `;
+
+  const delBtn = $('modal-btn-delete');
+  if (delBtn) delBtn.onclick = () => {
+    modal.classList.remove('open');
+    deleteTradeAt(idx);
+  };
+  const close2 = $('modal-btn-close-fermer');
+  if (close2) close2.onclick = () => modal.classList.remove('open');
+
+  modal.classList.add('open');
+}
+
+function _formatExitBlock(t) {
+  const entry = t.entry_hour || (new Date(t.entry_time || t.time)).toTimeString().slice(0,5);
+  const exit = t.exit_hour || (new Date(t.exit_time)).toTimeString().slice(0,5);
+  const dur = t.duration_text || formatDurationText(t.duration_seconds || 0);
+  const pnl = fmtMoney(t.net_pnl);
+  const reason = t.exit_reason || '—';
+  return (
+`Entrée : ${entry}
+Sortie : ${exit}
+Durée : ${dur}
+
+Résultat : ${pnl}
+
+Raison :
+${reason}`);
+}
+
+$('modal-close').addEventListener('click', () => $('trade-modal').classList.remove('open'));
+$('trade-modal').addEventListener('click', (e) => {
+  if (e.target.id === 'trade-modal') $('trade-modal').classList.remove('open');
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') $('trade-modal').classList.remove('open');
+});
+
+/* ---- Data utilisée ---- */
+function renderDataUsed(r) {
+  const d = r.data_analysis;
+  const container = $('data-used-content');
+  if (!d) {
+    container.innerHTML = '<p class="muted">Aucune donnée d\'analyse disponible pour cette période.</p>';
+    return;
+  }
+  const items = [
+    { k: 'Date/heure de début', v: `${d.period_start_date || '-'} ${d.period_start_hour || ''}`, cls: '' },
+    { k: 'Date/heure de fin', v: `${d.period_end_date || '-'} ${d.period_end_hour || ''}`, cls: '' },
+    { k: 'Bougies M1 utilisées', v: fmtNum(d.candles_total, 0), cls: '' },
+    { k: 'Bougies attendues dans la plage', v: fmtNum(d.candles_expected_in_range || d.candles_total, 0), cls: '' },
+    { k: 'Bougies manquantes (gaps)', v: fmtNum(d.missing_candles_in_range || 0, 0), cls: (d.missing_candles_in_range || 0) ? 'warn' : 'ok' },
+    { k: 'Valeurs NULL (indicateurs)', v: fmtNum(d.missing_values_total || 0, 0), cls: (d.missing_values_total || 0) > 10 ? 'warn' : 'ok' },
+    { k: 'Doublons de time', v: fmtNum(d.duplicate_count || 0, 0), cls: d.duplicate_count ? 'err' : 'ok' },
+    { k: 'Ratio NULL', v: `${fmtNum(d.null_ratio_percent, 2)} %`, cls: (d.null_ratio_percent || 0) > 1 ? 'warn' : 'ok' },
+    { k: 'Violations de plages', v: fmtNum(d.value_range_violations || 0, 0), cls: d.value_range_violations ? 'warn' : 'ok' },
+    { k: 'Bougies de warmup (EMA 50)', v: fmtNum(d.warmup_candles || 0, 0), cls: '' },
+    { k: 'Bougies utilisables pour indicateurs', v: fmtNum(d.indicator_candles_used || d.candles_total, 0), cls: '' },
+    { k: 'Source des données', v: d.source || '-', cls: '' },
+  ];
+
+  const first = d.first_candle || {};
+  const last = d.last_candle || {};
+
+  container.innerHTML = `
+    <div class="quality-meter">
+      <strong style="min-width:110px;">Qualité globale :</strong>
+      <div class="quality-bar"><div class="quality-fill ${(d.quality_score >= 90 ? 'excellent' : d.quality_score >= 75 ? 'good' : d.quality_score >= 50 ? 'correct' : 'bad')}" style="width:${d.quality_score}%"></div></div>
+      <span style="min-width:130px;text-align:right;font-weight:700;">${d.quality_label} · ${d.quality_score}/100</span>
+    </div>
+    <div class="data-grid">
+      ${items.map(it => `<div class="data-item"><div class="k">${it.k}</div><div class="v ${it.cls}">${it.v}</div></div>`).join('')}
+    </div>
+    <h3 style="margin-top:18px;">Première bougie M1</h3>
+    <div class="candle-preview">
+      <code>Time</code> ${first.time || '-'} ·
+      <code>O</code> ${fmtNum(first.open, 5)} ·
+      <code>H</code> ${fmtNum(first.high, 5)} ·
+      <code>L</code> ${fmtNum(first.low, 5)} ·
+      <code>C</code> ${fmtNum(first.close, 5)}
+    </div>
+    <h3>Dernière bougie M1</h3>
+    <div class="candle-preview">
+      <code>Time</code> ${last.time || '-'} ·
+      <code>O</code> ${fmtNum(last.open, 5)} ·
+      <code>H</code> ${fmtNum(last.high, 5)} ·
+      <code>L</code> ${fmtNum(last.low, 5)} ·
+      <code>C</code> ${fmtNum(last.close, 5)}
+    </div>
+    <div class="details-inline">Nombre de trades générés sur cette période : <strong>${CURRENT_TRADES.length}</strong></div>
+  `;
+}
+
+/* ---- Data Warehouse ---- */
+function renderWarehouse(r) {
+  const w = r.warehouse_analysis || WAREHOUSE_SNAPSHOT;
+  const container = $('warehouse-content');
+  if (!w) {
+    container.innerHTML = '<p class="muted">Aucune information sur le Data Warehouse.</p>';
+    return;
+  }
+  const statusCls = w.status === 'Sain' ? 'ok' : w.status === 'Mineurs' ? 'ok' : w.status === 'À surveiller' ? 'warn' : 'err';
+  const items = [
+    { k: 'Nom de la table', v: w.table_name || '-', cls: '' },
+    { k: 'Table OHLC source', v: w.source_ohlcv_table || '-', cls: '' },
+    { k: 'Nombre total de lignes', v: fmtNum(w.total_rows || 0, 0), cls: '' },
+    { k: 'Période disponible', v: `${w.period_start_formatted || '-'} → ${w.period_end_formatted || '-'}`, cls: '' },
+    { k: 'Bougies M1 disponibles', v: fmtNum(w.m1_candles_available || w.total_rows || 0, 0), cls: '' },
+    { k: 'Jours disponibles', v: fmtNum(w.available_days || 0, 0), cls: '' },
+    { k: 'Dernière donnée disponible', v: w.last_data_formatted || '-', cls: '' },
+    { k: 'Valeurs NULL au total', v: fmtNum(w.total_null_values || 0, 0), cls: (w.total_null_values || 0) > 100 ? 'warn' : 'ok' },
+    { k: 'Doublons (time)', v: fmtNum(w.duplicate_count || 0, 0), cls: w.duplicate_count ? 'err' : 'ok' },
+    { k: 'Anomalies OHLC', v: fmtNum(w.ohlc_anomalies || 0, 0), cls: w.ohlc_anomalies ? 'warn' : 'ok' },
+    { k: 'ATR NULL/≤0', v: fmtNum(w.atr_nulls_or_invalid || 0, 0), cls: w.atr_nulls_or_invalid ? 'warn' : 'ok' },
+    { k: 'EMA NULL', v: fmtNum(w.ema_nulls || 0, 0), cls: w.ema_nulls ? 'warn' : 'ok' },
+    { k: 'RSI hors plage / NULL', v: fmtNum(w.rsi_nulls_or_invalid || 0, 0), cls: w.rsi_nulls_or_invalid ? 'warn' : 'ok' },
+    { k: 'MACD NULL', v: fmtNum(w.macd_nulls || 0, 0), cls: w.macd_nulls ? 'warn' : 'ok' },
+    { k: 'Gaps détectés', v: fmtNum(w.gap_count || 0, 0), cls: w.gap_count ? 'warn' : 'ok' },
+    { k: 'Bougies M1 manquantes', v: fmtNum(w.missing_candles_minutes || 0, 0), cls: w.missing_candles_minutes ? 'warn' : 'ok' },
+  ];
+  container.innerHTML = `
+    <div class="quality-meter">
+      <strong style="min-width:150px;">État du warehouse :</strong>
+      <div class="quality-bar"><div class="quality-fill ${statusCls === 'ok' ? 'excellent' : statusCls === 'warn' ? 'correct' : 'bad'}" style="width:${Math.max(5, 100 - Math.min(95, (w.total_issues || 0)))}%"></div></div>
+      <span style="min-width:160px;text-align:right;font-weight:700;" class="v ${statusCls}">${w.status || '-'} · ${w.total_issues || 0} problème(s)</span>
+    </div>
+    <div class="data-grid">
+      ${items.map(it => `<div class="data-item"><div class="k">${it.k}</div><div class="v ${it.cls}">${it.v}</div></div>`).join('')}
+    </div>
+  `;
+}
+
+/* ==========================================================
+   6. CHARGEMENT INITIAL : si LAST_RESULT, on affiche
+========================================================== */
+function bootstrap() {
+  // Afficher d'abord le warehouse (disponible dès l'arrivée sur la page)
+  if (WAREHOUSE_SNAPSHOT) {
+    renderWarehouse({ warehouse_analysis: WAREHOUSE_SNAPSHOT });
+    $('section-warehouse').classList.remove('hidden-initial');
+  }
+
+  if (MULTI_BACKTESTS && MULTI_BACKTESTS.length) {
+    const agg = computeAggregated(MULTI_BACKTESTS);
+    renderAll(agg);
+    return;
+  }
+  if (LAST_RESULT && LAST_RESULT.metrics) {
+    // Cas d'un seul résultat (rétro-compatibilité) -> simuler un tableau
+    const agg = computeAggregated([LAST_RESULT]);
+    renderAll(agg);
+  }
+}
+bootstrap();
+</script>
+{% endblock %}
