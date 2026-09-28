@@ -9,8 +9,9 @@ REAL trading.
 from __future__ import annotations
 
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import Callable
 
 
 DEMO_MAGIC = int(os.getenv("MT5_DEMO_MAGIC", "26091401"))
@@ -187,6 +188,7 @@ def market_snapshot() -> dict:
             "last_connection_at": checked_at,
             "last_bid": float(tick.bid),
             "last_ask": float(tick.ask),
+            "broker_time": _utc_naive_from_epoch(tick.time).isoformat(timespec="seconds"),
             "spread_points": round((float(tick.ask) - float(tick.bid)) / float(info.point), 1),
             "positions": [
                 {
@@ -213,19 +215,66 @@ def market_snapshot() -> dict:
     return output
 
 
-def execute_signal(signal: int, atr: float, max_spread_to_atr: float = 0.35) -> dict:
-    """Submit one broker-checked market order on a DEMO account only."""
+def execute_signal(
+    signal: int,
+    atr: float,
+    max_spread_to_atr: float = 0.35,
+    preflight_guard: Callable[[], dict] | None = None,
+) -> dict:
+    """Submit one DEMO order only after an atomic, fresh risk preflight."""
     if signal not in (1, 2):
         return {"submitted": False, "reason": "NO TRADE"}
     if not _enabled():
         return {"submitted": False, "reason": "MT5_DEMO_EXECUTION_ENABLED is not true"}
+    if preflight_guard is None:
+        return {
+            "submitted": False,
+            "reason": "RISK_PREFLIGHT_REQUIRED: fresh MT5 history must be verified before execution",
+        }
+
+    try:
+        from Database.postgresql import mt5_execution_lock
+        with mt5_execution_lock(DEMO_MAGIC) as acquired:
+            if not acquired:
+                return {
+                    "submitted": False,
+                    "reason": "EXECUTION_LOCKED: another bot cycle is checking or opening a position",
+                }
+            try:
+                guard = preflight_guard() or {}
+            except Exception as error:
+                return {
+                    "submitted": False,
+                    "reason": f"RISK_PREFLIGHT_ERROR: {error}",
+                }
+            if not guard.get("allowed"):
+                return {
+                    "submitted": False,
+                    "reason": guard.get("reason") or "RISK_PREFLIGHT_BLOCKED",
+                    "guard": guard,
+                }
+            result = _execute_signal_locked(signal, atr, max_spread_to_atr)
+            result["guard"] = guard
+            return result
+    except Exception as error:
+        return {
+            "submitted": False,
+            "reason": f"EXECUTION_LOCK_ERROR: {error}",
+        }
+
+
+def _execute_signal_locked(signal: int, atr: float, max_spread_to_atr: float) -> dict:
+    """Perform the final broker checks and send while the execution lock is held."""
 
     mt5 = _connect()
     account = _account(mt5)
     if not account.trade_allowed or not account.trade_expert:
         return {"submitted": False, "reason": "MT5 account does not allow expert trading"}
     info, tick = _symbol_and_tick(mt5)
-    existing = [p for p in (mt5.positions_get(symbol=DEMO_SYMBOL) or ()) if int(p.magic) == DEMO_MAGIC]
+    positions = mt5.positions_get(symbol=DEMO_SYMBOL)
+    if positions is None:
+        raise RuntimeError(f"MT5 positions unavailable: {mt5.last_error()}")
+    existing = [p for p in positions if int(p.magic) == DEMO_MAGIC]
     if existing:
         return {"submitted": False, "reason": "duplicate blocked: a DEMO strategy position is already open"}
     if atr <= 0:
@@ -298,7 +347,9 @@ def _strategy_position_deals(mt5, since: datetime, until: datetime):
     displayed as OPEN. Ownership is determined from the entry deal, then all
     deals sharing its ``position_id`` are retained.
     """
-    all_deals = mt5.history_deals_get(since, until, group=f"*{DEMO_SYMBOL}*") or ()
+    all_deals = mt5.history_deals_get(since, until, group=f"*{DEMO_SYMBOL}*")
+    if all_deals is None:
+        raise RuntimeError(f"MT5 deal history unavailable: {mt5.last_error()}")
     entry_in = getattr(mt5, "DEAL_ENTRY_IN", 0)
     strategy_positions = {
         int(getattr(deal, "position_id", 0) or 0)
@@ -312,13 +363,38 @@ def _strategy_position_deals(mt5, since: datetime, until: datetime):
     ], strategy_positions
 
 
+def _history_window(mt5, since: datetime) -> tuple[datetime, datetime]:
+    """Build an MT5 history window from the broker clock.
+
+    Some terminals expose deal timestamps several hours ahead of the Windows
+    clock.  Using ``datetime.now()`` as the upper bound silently excludes the
+    most recent closing deals.  The latest broker tick is the authoritative
+    end of the history window; ``since`` is treated as a requested lookback.
+    """
+    _, tick = _symbol_and_tick(mt5)
+    broker_end = datetime.fromtimestamp(int(tick.time), timezone.utc) + timedelta(minutes=5)
+    if since.tzinfo is not None:
+        requested_age = datetime.now(timezone.utc) - since.astimezone(timezone.utc)
+    else:
+        requested_age = datetime.now() - since
+    requested_age = max(requested_age, timedelta())
+    # The extra hour protects records exactly on the requested boundary.
+    return broker_end - requested_age - timedelta(hours=1), broker_end
+
+
+def _utc_naive_from_epoch(value) -> datetime:
+    """Convert an MT5 epoch to the UTC-naive convention used in PostgreSQL."""
+    return datetime.fromtimestamp(float(value), timezone.utc).replace(tzinfo=None)
+
+
 def closed_deals(since: datetime) -> list[dict]:
     """Read closed DEMO deals for PostgreSQL reconciliation; never mutates MT5."""
     snapshot = market_snapshot()
     if not snapshot["connected"]:
         return []
     mt5 = _connect()
-    deals, _ = _strategy_position_deals(mt5, since, datetime.now())
+    history_start, history_end = _history_window(mt5, since)
+    deals, _ = _strategy_position_deals(mt5, history_start, history_end)
     exit_types = {
         getattr(mt5, "DEAL_ENTRY_OUT", 1),
         getattr(mt5, "DEAL_ENTRY_OUT_BY", 3),
@@ -326,20 +402,35 @@ def closed_deals(since: datetime) -> list[dict]:
     return [deal._asdict() for deal in deals if int(deal.entry) in exit_types]
 
 
-def trade_history(since: datetime) -> list[dict]:
+def trade_history(since: datetime, snapshot: dict | None = None) -> list[dict]:
     """Return complete MT5 positions by pairing their entry and exit deals."""
-    snapshot = market_snapshot()
+    snapshot = snapshot or market_snapshot()
     if not snapshot["connected"]:
         return []
     mt5 = _connect()
-    now = datetime.now()
-    strategy_deals, strategy_position_ids = _strategy_position_deals(mt5, since, now)
+    history_start, history_end = _history_window(mt5, since)
+    strategy_deals, strategy_position_ids = _strategy_position_deals(
+        mt5, history_start, history_end
+    )
     deals = sorted(
         strategy_deals,
         key=lambda item: int(getattr(item, "time_msc", 0) or (item.time * 1000)),
     )
+    raw_orders = mt5.history_orders_get(
+        history_start, history_end, group=f"*{DEMO_SYMBOL}*"
+    )
+    if raw_orders is None:
+        raise RuntimeError(f"MT5 order history unavailable: {mt5.last_error()}")
+    live_positions = mt5.positions_get(symbol=DEMO_SYMBOL)
+    if live_positions is None:
+        raise RuntimeError(f"MT5 live positions unavailable: {mt5.last_error()}")
+    live_by_position = {
+        int(position.ticket): position
+        for position in live_positions
+        if int(getattr(position, "magic", 0) or 0) == DEMO_MAGIC
+    }
     orders = [
-        order for order in (mt5.history_orders_get(since, now, group=f"*{DEMO_SYMBOL}*") or ())
+        order for order in raw_orders
         if int(getattr(order, "position_id", 0) or getattr(order, "position_by_id", 0) or 0)
         in strategy_position_ids
     ]
@@ -360,7 +451,10 @@ def trade_history(since: datetime) -> list[dict]:
             item["exits"].append(raw)
 
     order_by_position = {}
-    for order in orders:
+    for order in sorted(
+        orders,
+        key=lambda item: int(getattr(item, "time_done_msc", 0) or getattr(item, "time_setup_msc", 0)),
+    ):
         raw = order._asdict()
         position_id = int(raw.get("position_id") or raw.get("position_by_id") or raw.get("ticket") or 0)
         order_by_position.setdefault(position_id, []).append(raw)
@@ -371,15 +465,27 @@ def trade_history(since: datetime) -> list[dict]:
             continue
         first = parts["entries"][0]
         last_exit = parts["exits"][-1] if parts["exits"] else None
+        entry_volume = sum(float(item.get("volume", 0.0) or 0.0) for item in parts["entries"])
+        exit_volume = sum(float(item.get("volume", 0.0) or 0.0) for item in parts["exits"])
+        live_position = live_by_position.get(position_id)
+        fully_closed = bool(
+            last_exit
+            and live_position is None
+            and exit_volume + 1e-9 >= entry_volume
+        )
         related_orders = order_by_position.get(position_id, [])
         first_order = related_orders[0] if related_orders else {}
         last_order = related_orders[-1] if related_orders else {}
-        opened = datetime.fromtimestamp(first["time"])
-        closed = datetime.fromtimestamp(last_exit["time"]) if last_exit else None
+        opened = _utc_naive_from_epoch(first["time"])
+        closed = _utc_naive_from_epoch(last_exit["time"]) if fully_closed else None
         side = "BUY" if int(first.get("type", 0)) == 0 else "SELL"
         commission = sum(float(item.get("commission", 0.0) or 0.0) for item in parts["all"])
         swap = sum(float(item.get("swap", 0.0) or 0.0) for item in parts["all"])
-        profit = sum(float(item.get("profit", 0.0) or 0.0) for item in parts["all"]) + commission + swap
+        fee = sum(float(item.get("fee", 0.0) or 0.0) for item in parts["all"])
+        realized_fill_profit = sum(
+            float(item.get("profit", 0.0) or 0.0) for item in parts["all"]
+        )
+        profit = realized_fill_profit + commission + swap + fee
         records.append({
             "ticket": position_id,
             "position_id": position_id,
@@ -389,17 +495,28 @@ def trade_history(since: datetime) -> list[dict]:
             "symbol": str(first.get("symbol") or DEMO_SYMBOL),
             "side": side,
             "entry_price": float(first.get("price", 0.0)),
-            "exit_price": float(last_exit.get("price", 0.0)) if last_exit else None,
+            "exit_price": float(last_exit.get("price", 0.0)) if fully_closed else None,
             "volume": float(first.get("volume", 0.0)),
+            "remaining_volume": (
+                float(getattr(live_position, "volume", 0.0))
+                if live_position is not None
+                else max(0.0, entry_volume - exit_volume)
+            ),
             "stop_loss": float(first_order.get("sl", 0.0) or 0.0),
             "take_profit": float(first_order.get("tp", 0.0) or 0.0),
-            "profit_loss": round(profit, 2) if last_exit else None,
+            "profit_loss": round(profit, 2) if fully_closed else None,
+            "realized_partial_profit": round(profit, 2) if last_exit and not fully_closed else None,
             "commission": commission,
             "swap": swap,
+            "fee": fee,
+            "realized_fill_profit": realized_fill_profit,
             "duration_seconds": int((closed - opened).total_seconds()) if closed else None,
-            "status": "CLOSED" if last_exit else "OPEN",
+            "status": "CLOSED" if fully_closed else "OPEN",
             "entry_reason": str(first.get("comment") or first_order.get("comment") or "Signal confirmed"),
-            "exit_reason": str(last_exit.get("comment") or last_order.get("comment") or "Position closed") if last_exit else None,
+            "exit_reason": str(last_exit.get("comment") or last_order.get("comment") or "Position closed") if fully_closed else None,
+            # MT5 deal profit is based on actual entry/exit fills, so spread
+            # and slippage are already reflected before commission and swap.
+            "net_calculation": "realized_fill_profit + commission + swap + fee",
             "raw_deals": parts["all"],
             "raw_orders": related_orders,
         })

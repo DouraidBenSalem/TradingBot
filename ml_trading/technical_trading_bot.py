@@ -26,6 +26,8 @@ from Database.postgresql import (
     insert_bot_decision,
     record_bot_event,
     upsert_mt5_trade,
+    reconcile_mt5_trades,
+    list_mt5_trades,
 )
 from ml_trading import mt5_demo
 from ml_trading.daily_monitoring import (
@@ -78,7 +80,14 @@ def evaluate_daily_trade_policy(
     by_ticket: Dict[str, Dict[str, Any]] = {}
     for index, record in enumerate(records or []):
         opened_at = _as_datetime(record.get("opened_at") or record.get("entry_time"))
-        if opened_at is None or opened_at.date() != current_dt.date():
+        closed_at = _as_datetime(record.get("closed_at") or record.get("exit_time"))
+        status = str(record.get("status") or "").upper()
+        belongs_to_day = bool(
+            (opened_at is not None and opened_at.date() == current_dt.date())
+            or (closed_at is not None and closed_at.date() == current_dt.date())
+            or status == "OPEN"
+        )
+        if not belongs_to_day:
             continue
         ticket = record.get("ticket") or record.get("position_id") or record.get("order_ticket")
         key = str(ticket) if ticket is not None else f"record-{index}"
@@ -87,7 +96,11 @@ def evaluate_daily_trade_policy(
         if existing is None or str(record.get("status") or "").upper() == "CLOSED":
             by_ticket[key] = record
 
-    trades = list(by_ticket.values())
+    trades = sorted(
+        by_ticket.values(),
+        key=lambda trade: _as_datetime(trade.get("opened_at") or trade.get("entry_time"))
+        or datetime.max,
+    )
     closed = [
         trade for trade in trades
         if str(trade.get("status") or "").upper() == "CLOSED"
@@ -99,9 +112,30 @@ def evaluate_daily_trade_policy(
     winning_trades = sum(1 for trade in closed if float(trade.get("profit_loss") or 0.0) > 0)
     losing_trades = sum(1 for trade in closed if float(trade.get("profit_loss") or 0.0) < 0)
 
+    first_trade = trades[0] if trades else None
+    first_trade_closed = bool(
+        first_trade
+        and str(first_trade.get("status") or "").upper() == "CLOSED"
+        and first_trade.get("profit_loss") is not None
+    )
+    first_trade_net_pnl = (
+        round(float(first_trade.get("profit_loss") or 0.0), 2)
+        if first_trade_closed
+        else None
+    )
+    first_trade_positive = bool(
+        first_trade_closed and first_trade_net_pnl is not None and first_trade_net_pnl > 0
+    )
+
     stop_reason = None
     stop_message = None
-    if executed_count >= limit:
+    if first_trade_positive:
+        stop_reason = "FIRST_TRADE_NET_POSITIVE"
+        stop_message = (
+            "Premier trade cloture avec un resultat net positif "
+            f"({first_trade_net_pnl:+.2f}); trading arrete jusqu'au prochain jour."
+        )
+    elif executed_count >= limit:
         stop_reason = "MAX_TRADES_PER_DAY"
         stop_message = f"Limite journaliere atteinte ({limit} trades executes)."
     elif closed and net_pnl > 0:
@@ -126,6 +160,9 @@ def evaluate_daily_trade_policy(
         "winning_trades": winning_trades,
         "losing_trades": losing_trades,
         "net_pnl": net_pnl,
+        "first_trade_closed": first_trade_closed,
+        "first_trade_net_pnl": first_trade_net_pnl,
+        "first_trade_positive": first_trade_positive,
         "stopped": stop_reason is not None,
         "stop_reason": stop_reason,
         "stop_message": stop_message,
@@ -300,17 +337,45 @@ class TechnicalTradingBot:
             self.state["last_decision_log_error"] = str(error)
             return None
 
-    def _sync_demo_history(self):
+    def _sync_demo_history(self, snapshot: Optional[Dict[str, Any]] = None):
         """Persist newly closed MT5 DEMO deals and calculate observed metrics."""
         if not self.demo_mode:
-            return
+            return []
         since = datetime.now() - timedelta(days=30)
-        records = mt5_demo.trade_history(since)
+        records = mt5_demo.trade_history(since, snapshot=snapshot)
+        reference_time = (
+            _as_datetime((snapshot or {}).get("broker_time")) or datetime.now()
+        )
+        known_rows = list_mt5_trades(
+            limit=5000,
+            start_date=reference_time.date() - timedelta(days=1),
+            end_date=reference_time.date(),
+        )
+        history_ids = {
+            int(value)
+            for item in records
+            for value in (item.get("ticket"), item.get("position_id"), item.get("order_ticket"))
+            if value
+        }
+        missing_tickets = []
+        for item in known_rows:
+            known_ids = {
+                int(value)
+                for value in (item.get("ticket"), item.get("position_id"), item.get("order_ticket"))
+                if value
+            }
+            if known_ids and history_ids.isdisjoint(known_ids):
+                missing_tickets.append(int(item.get("ticket") or min(known_ids)))
+        if missing_tickets:
+            raise RuntimeError(
+                "MT5_HISTORY_INCOMPLETE: recent PostgreSQL tickets are absent from MT5 history: "
+                + ", ".join(f"#{ticket}" for ticket in sorted(set(missing_tickets)))
+            )
+        reconcile_mt5_trades(records)
         seen = set(self.state.get("demo_seen_position_tickets", []))
         closed = []
         for item in records:
             ticket = int(item["ticket"])
-            upsert_mt5_trade(item)
             if item.get("status") == "CLOSED" and item.get("profit_loss") is not None:
                 closed.append({"net_pnl": float(item["profit_loss"]), **item})
                 if ticket not in seen:
@@ -347,11 +412,104 @@ class TechnicalTradingBot:
             "net_pnl": round(sum(trade["net_pnl"] for trade in closed), 2),
             "max_drawdown": round(drawdown, 2),
         }
+        return records
+
+    def reconcile_demo_history(self, current_time: Any = None) -> Dict[str, Any]:
+        """Refresh MT5, PostgreSQL and the risk gate between M1 candles."""
+        if not self.demo_mode:
+            return {"enabled": False}
+        snapshot = mt5_demo.market_snapshot()
+        self.state["mt5_demo"] = snapshot
+        records = []
+        if snapshot.get("connected"):
+            records = self._sync_demo_history(snapshot=snapshot)
+        policy_time = (
+            _as_datetime(current_time)
+            or _as_datetime(snapshot.get("broker_time"))
+            or _as_datetime(self.state.get("last_update"))
+            or datetime.now()
+        )
+        policy = self._daily_trade_policy(policy_time)
+        self._record_daily_stop_if_needed(policy)
+        self._persist_daily_policy_summary(policy_time, policy)
+        self.state["last_bot_activity"] = datetime.now().isoformat(timespec="seconds")
+        self._save_state()
+        return {
+            "enabled": True,
+            "mt5_demo": snapshot,
+            "demo_metrics": self.state.get("demo_metrics", {}),
+            "daily_trade_policy": policy,
+            "reconciled_trades": len(records),
+        }
+
+    def _execution_preflight(self) -> Dict[str, Any]:
+        """Re-read MT5 immediately before order_send and fail closed on doubt."""
+        snapshot = mt5_demo.market_snapshot()
+        self.state["mt5_demo"] = snapshot
+        if not snapshot.get("connected"):
+            return {
+                "allowed": False,
+                "reason": f"MT5_NOT_CONNECTED: {snapshot.get('connection_error') or 'connection unavailable'}",
+            }
+
+        records = self._sync_demo_history(snapshot=snapshot)
+        policy_time = (
+            _as_datetime(snapshot.get("broker_time"))
+            or _as_datetime(self.state.get("last_update"))
+            or datetime.now()
+        )
+        policy = self._daily_trade_policy(policy_time)
+        self._record_daily_stop_if_needed(policy)
+        live_positions = snapshot.get("positions") or []
+        if live_positions:
+            reason = "POSITION_ALREADY_OPEN: MT5 still reports a strategy position."
+        elif not policy.get("can_open_new_trade"):
+            reason = (
+                f"{policy.get('block_reason')}: "
+                f"{policy.get('stop_message') or 'daily risk policy blocks a new position.'}"
+            )
+        else:
+            reason = None
+        return {
+            "allowed": reason is None,
+            "reason": reason,
+            "verified_at": datetime.now().isoformat(timespec="seconds"),
+            "broker_time": snapshot.get("broker_time"),
+            "live_position_tickets": [item.get("ticket") for item in live_positions],
+            "reconciled_trades": len(records),
+            "daily_trade_policy": policy,
+        }
 
     def _daily_trade_policy(self, current_time: Any) -> Dict[str, Any]:
+        current_dt = _as_datetime(current_time) or datetime.now()
+        records = list(self.state.get("demo_trade_history") or [])
+        # PostgreSQL is the durable source of truth.  A process restart or a
+        # transient MT5 history response must never reset the daily counters.
+        try:
+            persisted = list_mt5_trades(
+                limit=5000,
+                start_date=current_dt.date() - timedelta(days=1),
+                end_date=current_dt.date(),
+            )
+            older_open = list_mt5_trades(limit=5000, status="OPEN")
+            by_ticket: Dict[str, Dict[str, Any]] = {}
+            for index, record in enumerate([*records, *persisted, *older_open]):
+                item = dict(record)
+                ticket = item.get("ticket") or item.get("position_id") or item.get("order_ticket")
+                key = str(ticket) if ticket is not None else f"record-{index}"
+                existing = by_ticket.get(key)
+                if (
+                    existing is None
+                    or str(item.get("status") or "").upper() == "CLOSED"
+                    or str(existing.get("status") or "").upper() != "CLOSED"
+                ):
+                    by_ticket[key] = item
+            records = list(by_ticket.values())
+        except Exception as exc:
+            self.state["daily_policy_database_error"] = str(exc)
         policy = evaluate_daily_trade_policy(
-            self.state.get("demo_trade_history") or [],
-            current_time,
+            records,
+            current_dt,
             _MAX_TRADES_PER_DAY,
         )
         self.state["daily_trade_policy"] = policy
@@ -366,6 +524,66 @@ class TechnicalTradingBot:
             "recovery_target": policy["recovery_target"],
         }
         return policy
+
+    def _persist_daily_policy_summary(
+        self,
+        current_time: Any,
+        policy: Dict[str, Any],
+    ) -> None:
+        """Keep the persisted daily summary aligned with reconciled trades."""
+        current_dt = _as_datetime(current_time) or datetime.now()
+        if not self.demo_mode:
+            return
+        if not self._daily_session_initialized or self._daily_session_id is None:
+            self._ensure_daily_session(current_dt)
+        info = self._daily_session_account_info()
+        current = get_daily_session_by_date(
+            current_dt,
+            info.get("account_login") or 0,
+            _DAILY_SESSION_STRATEGY,
+            _DAILY_SESSION_SYMBOL,
+        )
+        row = dict(current) if current else {}
+        trades_opened = int(policy.get("executed_trades") or 0)
+        trades_won = int(policy.get("winning_trades") or 0)
+        trades_lost = int(policy.get("losing_trades") or 0)
+        pnl = float(policy.get("net_pnl") or 0.0)
+        status = "STOPPED" if policy.get("stopped") else ("TRADE" if trades_opened else "NO_TRADE")
+        if trades_opened:
+            message = build_trade_message(
+                total_signals=int(row.get("total_signals") or 0),
+                trades_opened=trades_opened,
+                trades_won=trades_won,
+                trades_lost=trades_lost,
+                pnl=pnl,
+            )
+            no_trade_reason = (
+                policy.get("stop_reason") if policy.get("stopped") else None
+            )
+        else:
+            message = row.get("message")
+            no_trade_reason = row.get("no_trade_reason")
+        expected = {
+            "trades_opened": trades_opened,
+            "trades_won": trades_won,
+            "trades_lost": trades_lost,
+            "pnl": pnl,
+            "status": status,
+            "no_trade_reason": no_trade_reason,
+        }
+        if row and all(row.get(key) == value for key, value in expected.items()):
+            return
+        upsert_daily_session({
+            "session_date": current_dt.date(),
+            "strategy": _DAILY_SESSION_STRATEGY,
+            "symbol": _DAILY_SESSION_SYMBOL,
+            "lot": _DAILY_SESSION_LOT,
+            "account_login": int(info.get("account_login") or 0),
+            "account_server": info.get("account_server"),
+            "account_is_demo": bool(info.get("account_is_demo")),
+            **expected,
+            "message": message,
+        })
 
     def _record_daily_stop_if_needed(self, policy: Dict[str, Any]) -> None:
         reason = policy.get("stop_reason")
@@ -663,7 +881,7 @@ class TechnicalTradingBot:
             if self.demo_mode:
                 self.state['mt5_demo'] = mt5_demo.market_snapshot()
                 if self.state['mt5_demo'].get('connected'):
-                    self._sync_demo_history()
+                    self._sync_demo_history(snapshot=self.state['mt5_demo'])
                 for position in self.state['mt5_demo'].get('positions') or []:
                     try:
                         record_bot_event(
@@ -755,6 +973,7 @@ class TechnicalTradingBot:
                             signal,
                             atr,
                             max_spread_to_atr=float(self.strategy.max_spread_to_atr),
+                            preflight_guard=self._execution_preflight,
                         )
                     except Exception as error:
                         execution = {"submitted": False, "reason": f"MT5 connection/execution error: {error}"}
@@ -767,6 +986,15 @@ class TechnicalTradingBot:
                         except Exception:
                             pass
                     trade_signal['mt5_demo_execution'] = execution
+                    guard_policy = (execution.get('guard') or {}).get('daily_trade_policy')
+                    if guard_policy:
+                        daily_policy = guard_policy
+                        decision_details['daily_trade_policy'] = daily_policy
+                        trade_number = int(daily_policy['executed_trades']) + 1
+                        recovery_target = daily_policy.get('recovery_target')
+                        trade_signal['trade_number_today'] = trade_number
+                        trade_signal['daily_net_before_entry'] = daily_policy['net_pnl']
+                        trade_signal['daily_recovery_target'] = recovery_target
                     if execution.get('submitted'):
                         action = 'BUY' if signal == 1 else 'SELL'
                         entry_reason = (

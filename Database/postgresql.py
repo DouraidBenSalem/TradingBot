@@ -1,7 +1,8 @@
 import os
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import psycopg2
 from psycopg2.extras import Json, RealDictCursor, RealDictRow
@@ -25,6 +26,27 @@ def get_connection():
     )
 
     return connection
+
+
+@contextmanager
+def mt5_execution_lock(lock_key: int):
+    """Prevent two bot processes from checking and opening at the same time."""
+    connection = get_connection()
+    acquired = False
+    try:
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_try_advisory_lock(%s)", (int(lock_key),))
+            acquired = bool(cursor.fetchone()[0])
+        yield acquired
+    finally:
+        if acquired:
+            try:
+                with connection.cursor() as cursor:
+                    cursor.execute("SELECT pg_advisory_unlock(%s)", (int(lock_key),))
+                connection.commit()
+            except Exception:
+                connection.rollback()
+        connection.close()
 
 
 def _add_column_if_missing(cursor, table: str, col: str, definition: str):
@@ -962,6 +984,7 @@ def close_daily_session(session_id: int, overrides: Optional[Dict[str, Any]] = N
                 UPDATE public.mt5_demo_daily_sessions
                 SET closed_at = %s,
                     duration_seconds = %s,
+                    trades_opened = %s,
                     trades_won = %s,
                     trades_lost = %s,
                     trades_cancelled = %s,
@@ -975,6 +998,7 @@ def close_daily_session(session_id: int, overrides: Optional[Dict[str, Any]] = N
                 (
                     closed_at,
                     duration_seconds,
+                    trades_opened,
                     int(merged.get("trades_won") or 0),
                     int(merged.get("trades_lost") or 0),
                     int(merged.get("trades_cancelled") or 0),
@@ -1446,14 +1470,32 @@ def upsert_mt5_trade(trade: Dict[str, Any], connection=None) -> int:
                     stop_loss = COALESCE(NULLIF(EXCLUDED.stop_loss, 0), public.mt5_trade_history.stop_loss),
                     take_profit = COALESCE(NULLIF(EXCLUDED.take_profit, 0), public.mt5_trade_history.take_profit),
                     profit_loss = COALESCE(EXCLUDED.profit_loss, public.mt5_trade_history.profit_loss),
-                    commission = EXCLUDED.commission,
-                    swap = EXCLUDED.swap,
+                    commission = CASE
+                        WHEN public.mt5_trade_history.status = 'CLOSED'
+                             AND EXCLUDED.status <> 'CLOSED'
+                        THEN public.mt5_trade_history.commission
+                        ELSE EXCLUDED.commission
+                    END,
+                    swap = CASE
+                        WHEN public.mt5_trade_history.status = 'CLOSED'
+                             AND EXCLUDED.status <> 'CLOSED'
+                        THEN public.mt5_trade_history.swap
+                        ELSE EXCLUDED.swap
+                    END,
                     duration_seconds = COALESCE(EXCLUDED.duration_seconds, public.mt5_trade_history.duration_seconds),
-                    status = EXCLUDED.status,
+                    status = CASE
+                        WHEN public.mt5_trade_history.status = 'CLOSED' THEN 'CLOSED'
+                        ELSE EXCLUDED.status
+                    END,
                     entry_reason = COALESCE(EXCLUDED.entry_reason, public.mt5_trade_history.entry_reason),
                     exit_reason = COALESCE(EXCLUDED.exit_reason, public.mt5_trade_history.exit_reason),
                     decision_id = COALESCE(EXCLUDED.decision_id, public.mt5_trade_history.decision_id),
-                    raw_trade = EXCLUDED.raw_trade,
+                    raw_trade = CASE
+                        WHEN public.mt5_trade_history.status = 'CLOSED'
+                             AND EXCLUDED.status <> 'CLOSED'
+                        THEN public.mt5_trade_history.raw_trade
+                        ELSE EXCLUDED.raw_trade
+                    END,
                     updated_at = CURRENT_TIMESTAMP
                 RETURNING id
                 """,
@@ -1486,11 +1528,26 @@ def upsert_mt5_trade(trade: Dict[str, Any], connection=None) -> int:
                         [value for value in (ticket, trade.get("position_id"), trade.get("order_ticket")) if value],
                     ),
                 )
-        connection.commit()
+        if own_conn:
+            connection.commit()
         return int(row[0])
     finally:
         if own_conn:
             connection.close()
+
+
+def reconcile_mt5_trades(trades: Iterable[Dict[str, Any]]) -> List[int]:
+    """Atomically reconcile one MT5 history snapshot in a single connection."""
+    connection = get_connection()
+    try:
+        ids = [upsert_mt5_trade(trade, connection=connection) for trade in trades]
+        connection.commit()
+        return ids
+    except Exception:
+        connection.rollback()
+        raise
+    finally:
+        connection.close()
 
 
 def _monitoring_filters(symbol=None, start_date=None, end_date=None, side=None,

@@ -146,3 +146,20 @@ def on_new_candle(candle_time: Optional[Any] = None) -> Dict[str, Any]:
         state["last_update"] = datetime.now().isoformat(timespec="seconds")
         save_state(state)
         return state
+
+
+def reconcile_mt5_history() -> Dict[str, Any]:
+    """Publish MT5 trade closures without waiting for a new market candle."""
+    with _LOCK:
+        state = load_state()
+        result = _bot().reconcile_demo_history()
+        if not result.get("enabled"):
+            return result
+        signal = dict(state.get("signal") or {})
+        signal["mt5_demo"] = result.get("mt5_demo") or {}
+        signal["demo_metrics"] = result.get("demo_metrics") or {}
+        signal["daily_trade_policy"] = result.get("daily_trade_policy") or {}
+        state["signal"] = signal
+        state["last_mt5_reconciliation"] = datetime.now().isoformat(timespec="seconds")
+        save_state(state)
+        return result

@@ -1,0 +1,479 @@
+{
+  "period": {
+    "start": "2026-08-19 14:00:00",
+    "end": "2026-09-14 13:49:00"
+  },
+  "validation_dates": {
+    "selection_validation_start": "2026-09-01",
+    "final_holdout_start": "2026-09-08"
+  },
+  "execution_assumptions": {
+    "commission_per_lot_round_turn": 14.0,
+    "slippage_points_each_side": 1.0,
+    "uses_observed_bid_ask_spread": true
+  },
+  "acceptance_criteria": {
+    "minimum_market_days": 30,
+    "minimum_full_sample_trades": 30,
+    "minimum_trades_per_market_day": 1.0,
+    "minimum_profit_factor": 1.1,
+    "minimum_win_rate_percent": 50.0,
+    "maximum_drawdown_percent": 15.0,
+    "positive_net_profit_and_expectancy_required": true
+  },
+  "data_sufficient_for_deployment": false,
+  "results": [
+    {
+      "name": "rsi_mean_reversion_selective",
+      "strategy_type": "rsi_mean_reversion",
+      "strategy": {
+        "oversold_rsi": 30.0,
+        "overbought_rsi": 70.0,
+        "distance_from_ema21_atr": 0.95,
+        "max_ema_spread_atr": 0.65,
+        "min_wick_to_body": 0.6,
+        "min_score": 8,
+        "min_atr_pips": 1.25,
+        "max_spread_to_atr": 0.55,
+        "min_volume_ratio": 0.8,
+        "min_body_ratio": 0.4,
+        "min_close_position": 0.65,
+        "session_start_hour": 15,
+        "session_end_hour": 20
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.2,
+        "tp_atr_multiplier": 1.5,
+        "horizon_bars": 20
+      },
+      "full": {
+        "total_trades": 5,
+        "winning_trades": 1,
+        "losing_trades": 4,
+        "trades_per_market_day": 0.26,
+        "net_profit": -9.28,
+        "return_percent": -9.28,
+        "win_rate": 20.0,
+        "profit_factor": 0.13,
+        "expectancy": -1.86,
+        "max_drawdown_percent": -9.28,
+        "market_days_in_range": 19
+      },
+      "in_sample": {
+        "total_trades": 3,
+        "winning_trades": 0,
+        "losing_trades": 3,
+        "trades_per_market_day": 0.33,
+        "net_profit": -8.08,
+        "return_percent": -8.08,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "expectancy": -2.69,
+        "max_drawdown_percent": -8.08,
+        "market_days_in_range": 9
+      },
+      "selection_validation": {
+        "total_trades": 1,
+        "winning_trades": 1,
+        "losing_trades": 0,
+        "trades_per_market_day": 0.2,
+        "net_profit": 1.36,
+        "return_percent": 1.36,
+        "win_rate": 100.0,
+        "profit_factor": 0,
+        "expectancy": 1.36,
+        "max_drawdown_percent": 0.0,
+        "market_days_in_range": 5
+      },
+      "final_holdout": {
+        "total_trades": 1,
+        "winning_trades": 0,
+        "losing_trades": 1,
+        "trades_per_market_day": 0.2,
+        "net_profit": -2.57,
+        "return_percent": -2.57,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "expectancy": -2.57,
+        "max_drawdown_percent": -2.57,
+        "market_days_in_range": 5
+      },
+      "selection_passed": false
+    },
+    {
+      "name": "ema_pullback_wider_stop",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 7,
+        "max_spread_to_atr": 0.35,
+        "min_atr_pips": 0.9,
+        "min_ema_separation_atr": 0.1,
+        "min_volume_ratio": 0.7,
+        "pullback_tolerance_atr": 0.45,
+        "min_body_ratio": 0.35,
+        "min_close_position": 0.6,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "horizon_bars": 45
+      },
+      "full": {
+        "total_trades": 19,
+        "winning_trades": 11,
+        "losing_trades": 8,
+        "trades_per_market_day": 1.0,
+        "net_profit": 8.54,
+        "return_percent": 8.54,
+        "win_rate": 57.89,
+        "profit_factor": 1.28,
+        "expectancy": 0.45,
+        "max_drawdown_percent": -19.57,
+        "market_days_in_range": 19
+      },
+      "in_sample": {
+        "total_trades": 7,
+        "winning_trades": 6,
+        "losing_trades": 1,
+        "trades_per_market_day": 0.78,
+        "net_profit": 18.26,
+        "return_percent": 18.26,
+        "win_rate": 85.71,
+        "profit_factor": 5.57,
+        "expectancy": 2.61,
+        "max_drawdown_percent": -4.0,
+        "market_days_in_range": 9
+      },
+      "selection_validation": {
+        "total_trades": 6,
+        "winning_trades": 2,
+        "losing_trades": 4,
+        "trades_per_market_day": 1.2,
+        "net_profit": -7.38,
+        "return_percent": -7.38,
+        "win_rate": 33.33,
+        "profit_factor": 0.49,
+        "expectancy": -1.23,
+        "max_drawdown_percent": -7.55,
+        "market_days_in_range": 5
+      },
+      "final_holdout": {
+        "total_trades": 6,
+        "winning_trades": 3,
+        "losing_trades": 3,
+        "trades_per_market_day": 1.2,
+        "net_profit": -2.34,
+        "return_percent": -2.34,
+        "win_rate": 50.0,
+        "profit_factor": 0.8,
+        "expectancy": -0.39,
+        "max_drawdown_percent": -12.03,
+        "market_days_in_range": 5
+      },
+      "selection_passed": false
+    },
+    {
+      "name": "ema_pullback_execution_selective",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 7,
+        "max_spread_to_atr": 0.3,
+        "min_atr_pips": 1.0,
+        "min_ema_separation_atr": 0.15,
+        "min_volume_ratio": 0.8,
+        "pullback_tolerance_atr": 0.3,
+        "min_body_ratio": 0.45,
+        "min_close_position": 0.65,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.0,
+        "tp_atr_multiplier": 2.0,
+        "horizon_bars": 30
+      },
+      "full": {
+        "total_trades": 11,
+        "winning_trades": 4,
+        "losing_trades": 7,
+        "trades_per_market_day": 0.58,
+        "net_profit": -8.88,
+        "return_percent": -8.88,
+        "win_rate": 36.36,
+        "profit_factor": 0.61,
+        "expectancy": -0.81,
+        "max_drawdown_percent": -15.7,
+        "market_days_in_range": 19
+      },
+      "in_sample": {
+        "total_trades": 6,
+        "winning_trades": 3,
+        "losing_trades": 3,
+        "trades_per_market_day": 0.67,
+        "net_profit": 1.09,
+        "return_percent": 1.09,
+        "win_rate": 50.0,
+        "profit_factor": 1.11,
+        "expectancy": 0.18,
+        "max_drawdown_percent": -3.84,
+        "market_days_in_range": 9
+      },
+      "selection_validation": {
+        "total_trades": 2,
+        "winning_trades": 0,
+        "losing_trades": 2,
+        "trades_per_market_day": 0.4,
+        "net_profit": -6.6,
+        "return_percent": -6.6,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "expectancy": -3.3,
+        "max_drawdown_percent": -6.6,
+        "market_days_in_range": 5
+      },
+      "final_holdout": {
+        "total_trades": 3,
+        "winning_trades": 1,
+        "losing_trades": 2,
+        "trades_per_market_day": 0.6,
+        "net_profit": -3.37,
+        "return_percent": -3.37,
+        "win_rate": 33.33,
+        "profit_factor": 0.45,
+        "expectancy": -1.12,
+        "max_drawdown_percent": -6.12,
+        "market_days_in_range": 5
+      },
+      "selection_passed": false
+    },
+    {
+      "name": "rsi_mean_reversion_balanced",
+      "strategy_type": "rsi_mean_reversion",
+      "strategy": {
+        "oversold_rsi": 35.0,
+        "overbought_rsi": 65.0,
+        "distance_from_ema21_atr": 0.7,
+        "max_ema_spread_atr": 0.9,
+        "min_wick_to_body": 0.35,
+        "min_score": 7,
+        "min_atr_pips": 1.1,
+        "max_spread_to_atr": 0.65,
+        "min_volume_ratio": 0.65,
+        "min_body_ratio": 0.3,
+        "min_close_position": 0.6,
+        "session_start_hour": 15,
+        "session_end_hour": 20
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.1,
+        "tp_atr_multiplier": 1.35,
+        "horizon_bars": 18
+      },
+      "full": {
+        "total_trades": 26,
+        "winning_trades": 6,
+        "losing_trades": 20,
+        "trades_per_market_day": 1.37,
+        "net_profit": -49.35,
+        "return_percent": -49.35,
+        "win_rate": 23.08,
+        "profit_factor": 0.04,
+        "expectancy": -1.9,
+        "max_drawdown_percent": -49.35,
+        "market_days_in_range": 19
+      },
+      "in_sample": {
+        "total_trades": 14,
+        "winning_trades": 3,
+        "losing_trades": 11,
+        "trades_per_market_day": 1.56,
+        "net_profit": -26.57,
+        "return_percent": -26.57,
+        "win_rate": 21.43,
+        "profit_factor": 0.01,
+        "expectancy": -1.9,
+        "max_drawdown_percent": -26.57,
+        "market_days_in_range": 9
+      },
+      "selection_validation": {
+        "total_trades": 5,
+        "winning_trades": 3,
+        "losing_trades": 2,
+        "trades_per_market_day": 1.0,
+        "net_profit": -3.47,
+        "return_percent": -3.47,
+        "win_rate": 60.0,
+        "profit_factor": 0.33,
+        "expectancy": -0.7,
+        "max_drawdown_percent": -4.77,
+        "market_days_in_range": 5
+      },
+      "final_holdout": {
+        "total_trades": 7,
+        "winning_trades": 0,
+        "losing_trades": 7,
+        "trades_per_market_day": 1.4,
+        "net_profit": -19.32,
+        "return_percent": -19.32,
+        "win_rate": 0.0,
+        "profit_factor": 0.0,
+        "expectancy": -2.76,
+        "max_drawdown_percent": -19.32,
+        "market_days_in_range": 5
+      },
+      "selection_passed": false
+    },
+    {
+      "name": "session_breakout_selective",
+      "strategy_type": "session_breakout",
+      "strategy": {
+        "breakout_lookback": 20,
+        "breakout_buffer_atr": 0.12,
+        "min_score": 8,
+        "min_atr_pips": 1.35,
+        "max_spread_to_atr": 0.55,
+        "min_volume_ratio": 0.85,
+        "session_start_hour": 15,
+        "session_end_hour": 19,
+        "min_body_ratio": 0.5,
+        "min_close_position": 0.72
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.2,
+        "tp_atr_multiplier": 1.8,
+        "horizon_bars": 25
+      },
+      "full": {
+        "total_trades": 46,
+        "winning_trades": 11,
+        "losing_trades": 35,
+        "trades_per_market_day": 2.42,
+        "net_profit": -90.52,
+        "return_percent": -90.52,
+        "win_rate": 23.91,
+        "profit_factor": 0.2,
+        "expectancy": -1.97,
+        "max_drawdown_percent": -97.55,
+        "market_days_in_range": 19
+      },
+      "in_sample": {
+        "total_trades": 24,
+        "winning_trades": 5,
+        "losing_trades": 19,
+        "trades_per_market_day": 2.67,
+        "net_profit": -48.7,
+        "return_percent": -48.7,
+        "win_rate": 20.83,
+        "profit_factor": 0.19,
+        "expectancy": -2.03,
+        "max_drawdown_percent": -55.62,
+        "market_days_in_range": 9
+      },
+      "selection_validation": {
+        "total_trades": 12,
+        "winning_trades": 3,
+        "losing_trades": 9,
+        "trades_per_market_day": 2.4,
+        "net_profit": -23.98,
+        "return_percent": -23.98,
+        "win_rate": 25.0,
+        "profit_factor": 0.15,
+        "expectancy": -2.0,
+        "max_drawdown_percent": -23.98,
+        "market_days_in_range": 5
+      },
+      "final_holdout": {
+        "total_trades": 10,
+        "winning_trades": 3,
+        "losing_trades": 7,
+        "trades_per_market_day": 2.0,
+        "net_profit": -17.84,
+        "return_percent": -17.84,
+        "win_rate": 30.0,
+        "profit_factor": 0.3,
+        "expectancy": -1.78,
+        "max_drawdown_percent": -17.95,
+        "market_days_in_range": 5
+      },
+      "selection_passed": false
+    },
+    {
+      "name": "session_breakout_balanced",
+      "strategy_type": "session_breakout",
+      "strategy": {
+        "breakout_lookback": 12,
+        "breakout_buffer_atr": 0.05,
+        "min_score": 7,
+        "min_atr_pips": 1.15,
+        "max_spread_to_atr": 0.65,
+        "min_volume_ratio": 0.7,
+        "session_start_hour": 15,
+        "session_end_hour": 20,
+        "min_body_ratio": 0.4,
+        "min_close_position": 0.65
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.15,
+        "tp_atr_multiplier": 1.6,
+        "horizon_bars": 20
+      },
+      "full": {
+        "total_trades": 51,
+        "winning_trades": 14,
+        "losing_trades": 37,
+        "trades_per_market_day": 2.68,
+        "net_profit": -84.09,
+        "return_percent": -84.09,
+        "win_rate": 27.45,
+        "profit_factor": 0.18,
+        "expectancy": -1.65,
+        "max_drawdown_percent": -92.78,
+        "market_days_in_range": 19
+      },
+      "in_sample": {
+        "total_trades": 27,
+        "winning_trades": 8,
+        "losing_trades": 19,
+        "trades_per_market_day": 3.0,
+        "net_profit": -39.21,
+        "return_percent": -39.21,
+        "win_rate": 29.63,
+        "profit_factor": 0.22,
+        "expectancy": -1.45,
+        "max_drawdown_percent": -45.0,
+        "market_days_in_range": 9
+      },
+      "selection_validation": {
+        "total_trades": 12,
+        "winning_trades": 3,
+        "losing_trades": 9,
+        "trades_per_market_day": 2.4,
+        "net_profit": -23.9,
+        "return_percent": -23.9,
+        "win_rate": 25.0,
+        "profit_factor": 0.09,
+        "expectancy": -1.99,
+        "max_drawdown_percent": -24.34,
+        "market_days_in_range": 5
+      },
+      "final_holdout": {
+        "total_trades": 12,
+        "winning_trades": 3,
+        "losing_trades": 9,
+        "trades_per_market_day": 2.4,
+        "net_profit": -20.97,
+        "return_percent": -20.97,
+        "win_rate": 25.0,
+        "profit_factor": 0.2,
+        "expectancy": -1.75,
+        "max_drawdown_percent": -24.3,
+        "market_days_in_range": 5
+      },
+      "selection_passed": false
+    }
+  ],
+  "best_observed_on_train_and_validation": "rsi_mean_reversion_selective",
+  "selected_on_train_and_validation": null,
+  "deployment_approved": false,
+  "approved": []
+}

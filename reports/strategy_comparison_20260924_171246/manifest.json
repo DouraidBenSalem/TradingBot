@@ -1,0 +1,260 @@
+{
+  "created_at_utc": "2026-09-24T17:12:47.049087+00:00",
+  "risk": {
+    "fixed_lot": 0.07,
+    "initial_balance": 100.0,
+    "daily_loss_limit": 10.0,
+    "max_trades_per_day": 3,
+    "commission_per_lot_side": 7.0,
+    "slippage_points": 1.0
+  },
+  "stress": {
+    "spread_multiplier": 1.25,
+    "slippage_points": 2.0
+  },
+  "criteria": {
+    "min_train_trades": 10,
+    "min_validation_trades": 10,
+    "min_tail_trades": 10,
+    "min_full_trades": 60,
+    "min_observed_market_days": 60,
+    "profit_factor_strictly_above": 1.1,
+    "max_equity_drawdown_bound_pct": 15.0,
+    "minimum_daily_frequency": null,
+    "minimum_win_rate": null
+  },
+  "candidates": [
+    {
+      "name": "ema_baseline",
+      "label": "EMA actuelle (reference)",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 7,
+        "min_atr_ratio": 5e-05,
+        "max_atr_ratio": 0.0015,
+        "min_atr_pips": 0.9,
+        "max_spread_to_atr": 0.35,
+        "min_ema_separation_atr": 0.1,
+        "min_volume_ratio": 0.7,
+        "pullback_tolerance_atr": 0.45,
+        "min_body_ratio": 0.35,
+        "min_close_position": 0.6,
+        "max_rsi_buy": 70.0,
+        "min_rsi_sell": 30.0,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "max_holding_minutes": 45
+      },
+      "filters": {},
+      "rationale": "Regles DEMO figees; indicateurs recalcules causalement, RSI corrige."
+    },
+    {
+      "name": "ema_m5_trend",
+      "label": "EMA + tendance M5 cloturee",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 7,
+        "min_atr_ratio": 5e-05,
+        "max_atr_ratio": 0.0015,
+        "min_atr_pips": 0.9,
+        "max_spread_to_atr": 0.35,
+        "min_ema_separation_atr": 0.1,
+        "min_volume_ratio": 0.7,
+        "pullback_tolerance_atr": 0.45,
+        "min_body_ratio": 0.35,
+        "min_close_position": 0.6,
+        "max_rsi_buy": 70.0,
+        "min_rsi_sell": 30.0,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "max_holding_minutes": 45
+      },
+      "filters": {
+        "m5_trend_agreement": true
+      },
+      "rationale": "Exiger une tendance EMA 9/21/50 M5 alignee sur le signal M1."
+    },
+    {
+      "name": "ema_strict_momentum",
+      "label": "EMA + RSI/MACD stricts",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 8,
+        "min_atr_ratio": 5e-05,
+        "max_atr_ratio": 0.0015,
+        "min_atr_pips": 0.9,
+        "max_spread_to_atr": 0.35,
+        "min_ema_separation_atr": 0.1,
+        "min_volume_ratio": 0.7,
+        "pullback_tolerance_atr": 0.45,
+        "min_body_ratio": 0.35,
+        "min_close_position": 0.6,
+        "max_rsi_buy": 65.0,
+        "min_rsi_sell": 35.0,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "max_holding_minutes": 45
+      },
+      "filters": {},
+      "rationale": "Exiger RSI et MACD ensemble et limiter les entrees RSI deja etendues."
+    },
+    {
+      "name": "ema_overlap_session",
+      "label": "EMA session 13-17 UTC",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 7,
+        "min_atr_ratio": 5e-05,
+        "max_atr_ratio": 0.0015,
+        "min_atr_pips": 0.9,
+        "max_spread_to_atr": 0.35,
+        "min_ema_separation_atr": 0.1,
+        "min_volume_ratio": 0.7,
+        "pullback_tolerance_atr": 0.45,
+        "min_body_ratio": 0.35,
+        "min_close_position": 0.6,
+        "max_rsi_buy": 70.0,
+        "min_rsi_sell": 30.0,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "max_holding_minutes": 45
+      },
+      "filters": {
+        "start_hour_utc": 13,
+        "end_hour_utc": 17
+      },
+      "rationale": "Limiter les entrees a une fenetre horaire fixe, sans objectif quotidien."
+    },
+    {
+      "name": "ema_cost_volatility",
+      "label": "EMA filtre cout/volatilite",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 7,
+        "min_atr_ratio": 5e-05,
+        "max_atr_ratio": 0.0003,
+        "min_atr_pips": 1.1,
+        "max_spread_to_atr": 0.3,
+        "min_ema_separation_atr": 0.1,
+        "min_volume_ratio": 0.7,
+        "pullback_tolerance_atr": 0.45,
+        "min_body_ratio": 0.35,
+        "min_close_position": 0.6,
+        "max_rsi_buy": 70.0,
+        "min_rsi_sell": 30.0,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "max_holding_minutes": 45
+      },
+      "filters": {},
+      "rationale": "Reserver les entrees a un spread/ATR plus faible et une volatilite moderee."
+    },
+    {
+      "name": "ema_wider_exits",
+      "label": "EMA SL 1.6 / TP 2.4 ATR",
+      "strategy_type": "ema_pullback",
+      "strategy": {
+        "min_score": 7,
+        "min_atr_ratio": 5e-05,
+        "max_atr_ratio": 0.0015,
+        "min_atr_pips": 0.9,
+        "max_spread_to_atr": 0.35,
+        "min_ema_separation_atr": 0.1,
+        "min_volume_ratio": 0.7,
+        "pullback_tolerance_atr": 0.45,
+        "min_body_ratio": 0.35,
+        "min_close_position": 0.6,
+        "max_rsi_buy": 70.0,
+        "min_rsi_sell": 30.0,
+        "require_hist_acceleration": true
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.6,
+        "tp_atr_multiplier": 2.4,
+        "max_holding_minutes": 45
+      },
+      "filters": {},
+      "rationale": "Variante voisine de distances SL/TP, a lot et limites de risque constants."
+    },
+    {
+      "name": "session_breakout",
+      "label": "Breakout session",
+      "strategy_type": "session_breakout",
+      "strategy": {
+        "breakout_lookback": 12,
+        "breakout_buffer_atr": 0.05,
+        "min_score": 7,
+        "min_atr_pips": 1.15,
+        "max_spread_to_atr": 0.65,
+        "min_volume_ratio": 0.7,
+        "session_start_hour": 15,
+        "session_end_hour": 20,
+        "min_body_ratio": 0.4,
+        "min_close_position": 0.65
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "max_holding_minutes": 20
+      },
+      "filters": {},
+      "rationale": "Comparer une famille de continuation par cassure du range precedent."
+    },
+    {
+      "name": "rsi_mean_reversion",
+      "label": "RSI retour a la moyenne",
+      "strategy_type": "rsi_mean_reversion",
+      "strategy": {
+        "oversold_rsi": 35.0,
+        "overbought_rsi": 65.0,
+        "distance_from_ema21_atr": 0.7,
+        "max_ema_spread_atr": 0.9,
+        "min_wick_to_body": 0.35,
+        "min_score": 7,
+        "min_atr_pips": 1.1,
+        "max_spread_to_atr": 0.65,
+        "min_volume_ratio": 0.65,
+        "session_start_hour": 15,
+        "session_end_hour": 20,
+        "min_body_ratio": 0.3,
+        "min_close_position": 0.6
+      },
+      "simulation": {
+        "sl_atr_multiplier": 1.4,
+        "tp_atr_multiplier": 2.2,
+        "max_holding_minutes": 20
+      },
+      "filters": {},
+      "rationale": "Comparer une famille de rejet RSI en regime EMA non impulsif."
+    }
+  ],
+  "source_hashes": {
+    "ml_trading\\compare_current_data.py": "10c0571766504a7c3472baf300749b8dd76303f195cf8c94be4fcbcd0b123fe9",
+    "ml_trading\\research_execution.py": "904f011ad02d2106ce7beb2f8b45a8977205d67ecec6db2634b89dd4f2dd08f6",
+    "ml_trading\\research_signals.py": "a1d2524ca618905a79eeb97a40d64d397a0d935874c8fefb2708ae3ec6439481",
+    "ml_trading\\technical_strategy.py": "2210ff1033083e8cb3ab6cb5e2e8a53f22e0bea5d0d1701d29631a1d8650b5ee",
+    "ml_trading\\technical_indicators.py": "edd3436f49df9bc32920c2304df22ef1d885cb150ebf040e8b6c66812336cdd3"
+  },
+  "split": {
+    "validation_start": "2026-09-07 00:00:00+00:00",
+    "diagnostic_tail_start": "2026-09-16 00:00:00+00:00"
+  },
+  "previously_examined_until": "2026-09-24 19:49:00+00:00",
+  "data_sha256": "3017ab1d498fd6eae5c20f10c4ccf7142969ad7e1e3760776750ef56547667e7",
+  "protocol": "8 fixed candidates; choose on train/validation only; tail descriptive; no deployment"
+}

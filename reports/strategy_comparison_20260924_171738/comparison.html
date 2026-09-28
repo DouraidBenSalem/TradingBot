@@ -1,0 +1,209 @@
+<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Comparaison EUR/USD M1</title><style>body{background:#f5f7fa;color:#172536;margin:2rem;font:15px/1.6 system-ui}main{max-width:1500px;margin:auto;background:white;padding:2rem;border-radius:12px}h1,h2{color:#16375b}h2{margin-top:2rem}.table{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:13px}th,td{padding:9px 12px;border-bottom:1px solid #dde4ec;text-align:right;white-space:nowrap}th{background:#173859;color:white}td:first-child,th:first-child{text-align:left}tr:nth-child(even){background:#f4f7fa}</style></head><body><main><h1>Comparaison EUR/USD M1 sur les donnees actuelles</h1>
+<p>Periode : 2026-08-19 14:00:00+00:00 -&gt; 2026-09-24 19:49:00+00:00 ; 37,715 bougies.</p>
+<p>Huit variantes fixees avant calcul. Resultats exploratoires : historique deja examine.</p>
+<p>Aucune strategie activee. Lot 0,07 ; capital 100 $ ; 3 trades maximum/jour ; perte realisee journaliere 10 $ ; arret apres journee nette positive.</p>
+<p>Couts : spread historique bid/ask, 7 $/lot/cote de commission, 1 point/cote de slippage.</p>
+<div class="table"><table><thead><tr><th>Variante</th><th>Trades G/P</th><th>Net $</th><th>Win %</th><th>PF</th><th>Expectancy $</th><th>DD solde %</th><th>DD equity borne %</th><th>Trades/j</th><th>Validation $</th><th>Recent $</th><th>Couts accrus, memes trades $</th></tr></thead><tbody>
+<tr><td>EMA actuelle (reference)</td><td>20 (10/10)</td><td>+2.86</td><td>50.0</td><td>1.08</td><td>+0.143</td><td>10.57</td><td>12.20</td><td>0.74</td><td>-7.91</td><td>-0.39</td><td>-2.74</td></tr>
+<tr><td>EMA + tendance M5 cloturee</td><td>17 (9/8)</td><td>+4.75</td><td>52.9</td><td>1.16</td><td>+0.279</td><td>9.76</td><td>12.72</td><td>0.63</td><td>-5.54</td><td>-0.87</td><td>-0.01</td></tr>
+<tr><td>EMA + RSI/MACD stricts</td><td>11 (1/10)</td><td>-32.23</td><td>9.1</td><td>0.09</td><td>-2.930</td><td>32.23</td><td>33.25</td><td>0.41</td><td>-18.20</td><td>-6.98</td><td>-35.31</td></tr>
+<tr><td>EMA session 13-17 UTC</td><td>8 (4/4)</td><td>-1.15</td><td>50.0</td><td>0.92</td><td>-0.143</td><td>7.05</td><td>9.43</td><td>0.30</td><td>-3.55</td><td>-3.96</td><td>-3.39</td></tr>
+<tr><td>EMA filtre cout/volatilite</td><td>9 (5/4)</td><td>+1.93</td><td>55.6</td><td>1.13</td><td>+0.214</td><td>12.15</td><td>15.20</td><td>0.33</td><td>+3.57</td><td>+3.92</td><td>-0.59</td></tr>
+<tr><td>EMA SL 1.6 / TP 2.4 ATR</td><td>19 (10/9)</td><td>+7.14</td><td>52.6</td><td>1.20</td><td>+0.376</td><td>13.78</td><td>16.59</td><td>0.70</td><td>-0.68</td><td>-4.77</td><td>+1.82</td></tr>
+<tr><td>Breakout session</td><td>63 (13/50)</td><td>-103.27</td><td>20.6</td><td>0.21</td><td>-1.639</td><td>103.27</td><td>103.27</td><td>2.33</td><td>-13.27</td><td>-30.51</td><td>-120.91</td></tr>
+<tr><td>RSI retour a la moyenne</td><td>31 (9/22)</td><td>-46.30</td><td>29.0</td><td>0.25</td><td>-1.494</td><td>51.26</td><td>53.83</td><td>1.15</td><td>-24.39</td><td>-0.92</td><td>-54.98</td></tr>
+</tbody></table></div>
+<h2>Motifs de rejet</h2>
+<h3>EMA actuelle (reference)</h3>
+<p>Hypothese : Regles DEMO figees; indicateurs recalcules causalement, RSI corrige.</p>
+<ul>
+<li>train: echantillon 7 trades &lt; 10</li>
+<li>validation: echantillon 6 trades &lt; 10</li>
+<li>validation: profit net -7.91 $ &lt;= 0</li>
+<li>validation: PF 0.45 &lt;= 1,10</li>
+<li>validation: expectancy -1.319 $ &lt;= 0</li>
+<li>periode recente: echantillon 7 trades &lt; 10</li>
+<li>periode recente: profit net -0.39 $ &lt;= 0</li>
+<li>periode recente: PF 0.98 &lt;= 1,10</li>
+<li>periode recente: expectancy -0.055 $ &lt;= 0</li>
+<li>historique complet: echantillon 20 trades &lt; 60</li>
+<li>historique complet: PF 1.08 &lt;= 1,10</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h3>EMA + tendance M5 cloturee</h3>
+<p>Hypothese : Exiger une tendance EMA 9/21/50 M5 alignee sur le signal M1.</p>
+<ul>
+<li>train: echantillon 7 trades &lt; 10</li>
+<li>validation: echantillon 5 trades &lt; 10</li>
+<li>validation: profit net -5.54 $ &lt;= 0</li>
+<li>validation: PF 0.49 &lt;= 1,10</li>
+<li>validation: expectancy -1.107 $ &lt;= 0</li>
+<li>validation avec couts stresses: profit net &lt;= 0</li>
+<li>periode recente: echantillon 5 trades &lt; 10</li>
+<li>periode recente: profit net -0.87 $ &lt;= 0</li>
+<li>periode recente: PF 0.93 &lt;= 1,10</li>
+<li>periode recente: expectancy -0.174 $ &lt;= 0</li>
+<li>historique complet: echantillon 17 trades &lt; 60</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h3>EMA + RSI/MACD stricts</h3>
+<p>Hypothese : Exiger RSI et MACD ensemble et limiter les entrees RSI deja etendues.</p>
+<ul>
+<li>train: echantillon 2 trades &lt; 10</li>
+<li>train: profit net -7.05 $ &lt;= 0</li>
+<li>train: PF 0.00 &lt;= 1,10</li>
+<li>train: expectancy -3.525 $ &lt;= 0</li>
+<li>validation: echantillon 7 trades &lt; 10</li>
+<li>validation: profit net -18.20 $ &lt;= 0</li>
+<li>validation: PF 0.15 &lt;= 1,10</li>
+<li>validation: expectancy -2.600 $ &lt;= 0</li>
+<li>validation: borne prudente drawdown equity 20.09% &gt; 15%</li>
+<li>periode recente: echantillon 2 trades &lt; 10</li>
+<li>periode recente: profit net -6.98 $ &lt;= 0</li>
+<li>periode recente: PF 0.00 &lt;= 1,10</li>
+<li>periode recente: expectancy -3.490 $ &lt;= 0</li>
+<li>historique complet: echantillon 11 trades &lt; 60</li>
+<li>historique complet: profit net -32.23 $ &lt;= 0</li>
+<li>historique complet: PF 0.09 &lt;= 1,10</li>
+<li>historique complet: expectancy -2.930 $ &lt;= 0</li>
+<li>historique complet: borne prudente drawdown equity 33.25% &gt; 15%</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>periode recente avec couts stresses: profit net &lt;= 0</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h3>EMA session 13-17 UTC</h3>
+<p>Hypothese : Limiter les entrees a une fenetre horaire fixe, sans objectif quotidien.</p>
+<ul>
+<li>train: echantillon 4 trades &lt; 10</li>
+<li>validation: echantillon 3 trades &lt; 10</li>
+<li>validation: profit net -3.55 $ &lt;= 0</li>
+<li>validation: PF 0.52 &lt;= 1,10</li>
+<li>validation: expectancy -1.183 $ &lt;= 0</li>
+<li>periode recente: echantillon 1 trades &lt; 10</li>
+<li>periode recente: profit net -3.96 $ &lt;= 0</li>
+<li>periode recente: PF 0.00 &lt;= 1,10</li>
+<li>periode recente: expectancy -3.955 $ &lt;= 0</li>
+<li>historique complet: echantillon 8 trades &lt; 60</li>
+<li>historique complet: profit net -1.15 $ &lt;= 0</li>
+<li>historique complet: PF 0.92 &lt;= 1,10</li>
+<li>historique complet: expectancy -0.143 $ &lt;= 0</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>periode recente avec couts stresses: profit net &lt;= 0</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h3>EMA filtre cout/volatilite</h3>
+<p>Hypothese : Reserver les entrees a un spread/ATR plus faible et une volatilite moderee.</p>
+<ul>
+<li>train: echantillon 5 trades &lt; 10</li>
+<li>train: profit net -5.56 $ &lt;= 0</li>
+<li>train: PF 0.51 &lt;= 1,10</li>
+<li>train: expectancy -1.113 $ &lt;= 0</li>
+<li>validation: echantillon 3 trades &lt; 10</li>
+<li>validation avec couts stresses: profit net &lt;= 0</li>
+<li>periode recente: echantillon 1 trades &lt; 10</li>
+<li>historique complet: echantillon 9 trades &lt; 60</li>
+<li>historique complet: borne prudente drawdown equity 15.20% &gt; 15%</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>periode recente avec couts stresses: profit net &lt;= 0</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h3>EMA SL 1.6 / TP 2.4 ATR</h3>
+<p>Hypothese : Variante voisine de distances SL/TP, a lot et limites de risque constants.</p>
+<ul>
+<li>train: echantillon 7 trades &lt; 10</li>
+<li>validation: echantillon 6 trades &lt; 10</li>
+<li>validation: profit net -0.68 $ &lt;= 0</li>
+<li>validation: PF 0.94 &lt;= 1,10</li>
+<li>validation: expectancy -0.114 $ &lt;= 0</li>
+<li>periode recente: echantillon 6 trades &lt; 10</li>
+<li>periode recente: profit net -4.77 $ &lt;= 0</li>
+<li>periode recente: PF 0.72 &lt;= 1,10</li>
+<li>periode recente: expectancy -0.795 $ &lt;= 0</li>
+<li>periode recente: borne prudente drawdown equity 18.31% &gt; 15%</li>
+<li>historique complet: echantillon 19 trades &lt; 60</li>
+<li>historique complet: borne prudente drawdown equity 16.59% &gt; 15%</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h3>Breakout session</h3>
+<p>Hypothese : Comparer une famille de continuation par cassure du range precedent.</p>
+<ul>
+<li>train: profit net -62.56 $ &lt;= 0</li>
+<li>train: PF 0.18 &lt;= 1,10</li>
+<li>train: expectancy -1.788 $ &lt;= 0</li>
+<li>train: borne prudente drawdown equity 63.84% &gt; 15%</li>
+<li>validation: profit net -13.27 $ &lt;= 0</li>
+<li>validation: PF 0.45 &lt;= 1,10</li>
+<li>validation: expectancy -1.021 $ &lt;= 0</li>
+<li>validation: borne prudente drawdown equity 15.76% &gt; 15%</li>
+<li>validation avec couts stresses: profit net &lt;= 0</li>
+<li>periode recente: profit net -30.51 $ &lt;= 0</li>
+<li>periode recente: PF 0.13 &lt;= 1,10</li>
+<li>periode recente: expectancy -1.695 $ &lt;= 0</li>
+<li>periode recente: borne prudente drawdown equity 34.04% &gt; 15%</li>
+<li>historique complet: profit net -103.27 $ &lt;= 0</li>
+<li>historique complet: PF 0.21 &lt;= 1,10</li>
+<li>historique complet: expectancy -1.639 $ &lt;= 0</li>
+<li>historique complet: borne prudente drawdown equity 103.27% &gt; 15%</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>periode recente avec couts stresses: profit net &lt;= 0</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h3>RSI retour a la moyenne</h3>
+<p>Hypothese : Comparer une famille de rejet RSI en regime EMA non impulsif.</p>
+<ul>
+<li>train: profit net -20.99 $ &lt;= 0</li>
+<li>train: PF 0.26 &lt;= 1,10</li>
+<li>train: expectancy -1.399 $ &lt;= 0</li>
+<li>train: borne prudente drawdown equity 26.65% &gt; 15%</li>
+<li>validation: profit net -24.39 $ &lt;= 0</li>
+<li>validation: PF 0.06 &lt;= 1,10</li>
+<li>validation: expectancy -2.439 $ &lt;= 0</li>
+<li>validation: borne prudente drawdown equity 25.64% &gt; 15%</li>
+<li>validation avec couts stresses: profit net &lt;= 0</li>
+<li>periode recente: echantillon 6 trades &lt; 10</li>
+<li>periode recente: profit net -0.92 $ &lt;= 0</li>
+<li>periode recente: PF 0.87 &lt;= 1,10</li>
+<li>periode recente: expectancy -0.153 $ &lt;= 0</li>
+<li>historique complet: echantillon 31 trades &lt; 60</li>
+<li>historique complet: profit net -46.30 $ &lt;= 0</li>
+<li>historique complet: PF 0.25 &lt;= 1,10</li>
+<li>historique complet: expectancy -1.494 $ &lt;= 0</li>
+<li>historique complet: borne prudente drawdown equity 53.83% &gt; 15%</li>
+<li>historique: 27 jours observes &lt; 60</li>
+<li>aucun holdout neuf evalue apres fixation de cette strategie</li>
+</ul>
+<h2>Reexecution avec spread +25% et slippage 2 points/cote</h2>
+<p>Ce scenario modifie les entrees, les sorties et les limites journalieres. Son portefeuille differe du test initial.</p>
+<div class="table"><table><thead><tr><th>Variante</th><th>Trades initiaux</th><th>Trades stress</th><th>Net stress $</th><th>Validation stress $</th><th>Recent stress $</th></tr></thead><tbody>
+<tr><td>EMA actuelle (reference)</td><td>20</td><td>8</td><td>+19.84</td><td>+7.20</td><td>+2.45</td></tr>
+<tr><td>EMA + tendance M5 cloturee</td><td>17</td><td>4</td><td>+13.37</td><td>+0.00</td><td>+3.18</td></tr>
+<tr><td>EMA + RSI/MACD stricts</td><td>11</td><td>1</td><td>+3.74</td><td>+3.74</td><td>+0.00</td></tr>
+<tr><td>EMA session 13-17 UTC</td><td>8</td><td>3</td><td>+4.13</td><td>+3.75</td><td>-4.02</td></tr>
+<tr><td>EMA filtre cout/volatilite</td><td>9</td><td>1</td><td>-4.43</td><td>+0.00</td><td>-4.43</td></tr>
+<tr><td>EMA SL 1.6 / TP 2.4 ATR</td><td>19</td><td>8</td><td>+16.95</td><td>+8.06</td><td>+2.69</td></tr>
+<tr><td>Breakout session</td><td>63</td><td>54</td><td>-90.91</td><td>-1.09</td><td>-19.15</td></tr>
+<tr><td>RSI retour a la moyenne</td><td>31</td><td>20</td><td>-34.60</td><td>-15.26</td><td>+0.36</td></tr>
+</tbody></table></div>
+<h2>Sensibilite a la sortie temporelle</h2>
+<p>Reference sans timeout (sorties gaps/fin de jour maintenues) : 20 trades, +2.86 $.</p>
+<h2>Limites et reproductibilite</h2>
+<ul>
+<li>Historique OHLC M1 bid; spread constant dans chaque bougie, ordre intrabougie inconnu.</li>
+<li>SL prioritaire si SL et TP touches; gaps: sortie derniere cloture observee, convention de recherche non reproductible en live sans prevoir les donnees manquantes.</li>
+<li>Cloture quotidienne/de gap et timeout simules: ces sorties ne sont pas implementees dans le bot DEMO.</li>
+<li>Aucune simulation de marge, execution au tick, swaps ni calendrier de nouvelles economiques.</li>
+<li>Drawdown equity: borne prudente intrabougie, pas une trajectoire au tick observee.</li>
+<li>RSI corrige et indicateurs reconstruits causalement en memoire; features DB et strategie active inchangees.</li>
+<li>Couts stresses: memes signaux de bougies; spread execution +25%, slippage 2 points/cote.</li>
+<li>Le stress de reexecution change les trades retenus et les arrets journaliers; une hausse du profit stress ne prouve pas la robustesse aux couts.</li>
+<li>Sensibilite a trades identiques: debit comptable supplementaire sans recalcul des executions; ce n&#x27;est pas un second backtest.</li>
+<li>Fuseau horaire des bougies interprete UTC selon le collecteur, mais correspondance avec le broker non confirmee.</li>
+<li>Aucun seuil minimum de trades par jour ni de win rate; taille minimale d&#x27;echantillon distincte.</li>
+</ul>
+<p>Le fichier manifest.json fixe les variantes, criteres, couts, dates et empreintes du code avant les backtests.</p>
+<p>raw.json.gz contient uniquement les donnees de marche du test ; results.json contient les transactions et chaque scenario.</p>
+<p>Aucune ecriture PostgreSQL, modification de .env ou activation DEMO/REAL n&#x27;est effectuee.</p>
+<p>Controle horaire : 152 lignes ont un horodatage posterieur a l&#x27;horloge UTC du rapport. Le fuseau source doit etre confirme avant toute interpretation des sessions ou utilisation en live.</p></main></body></html>

@@ -1,0 +1,14 @@
+{
+  "selected": null,
+  "ranking_train_validation_only": [
+    "ema_cost_volatility",
+    "ema_wider_exits",
+    "ema_overlap_session",
+    "ema_m5_trend",
+    "session_breakout",
+    "ema_baseline",
+    "ema_strict_momentum",
+    "rsi_mean_reversion"
+  ],
+  "manifest_sha256": "762e2e44675431b68f02d9f77c02f0839c6a82369b5a6ae210426a7eab6f80dc"
+}

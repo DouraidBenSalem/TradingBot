@@ -17,7 +17,7 @@ from psycopg2.extras import Json
 
 from Database.postgresql import get_connection, insert_trades_batch
 from ml_trading.features_provider import fetch_features_range, validate_features
-from ml_trading.technical_strategy import TrendFollowingStrategy
+from ml_trading.scalping_deployment import load_demo_strategy, load_deployed_strategy
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -134,7 +134,18 @@ def run(start_time=None, end_time=None):
                 f"(effectif lu : [{first_df_ts} ; {last_df_ts}])"
             )
 
-        strategy = TrendFollowingStrategy(min_score=STRATEGY_MIN_SCORE)
+        demo_mode = os.getenv("MT5_DEMO_MODE", "false").strip().lower() == "true"
+        strategy, deployment = (
+            load_demo_strategy() if demo_mode else load_deployed_strategy()
+        )
+        validated_simulation = deployment.get("simulation") or {}
+        sl_atr_multiplier = float(validated_simulation.get("sl_atr_multiplier", 1.0))
+        tp_atr_multiplier = float(validated_simulation.get("tp_atr_multiplier", 2.0))
+        horizon_bars = int(validated_simulation.get("horizon_bars", HORIZON_BARS))
+        # The fixed lot and the existing account-level risk limits remain the
+        # shared source of truth. Strategy selection must not silently alter
+        # sizing when a backtest is launched from the dashboard.
+        fixed_lot = BACKTEST_FIXED_LOT
 
         result = _simulate(
             df,
@@ -142,8 +153,11 @@ def run(start_time=None, end_time=None):
             initial_balance=DEFAULT_INITIAL_BALANCE,
             commission_per_lot=DEFAULT_COMMISSION_PER_LOT,
             slippage_points=DEFAULT_SLIPPAGE_POINTS,
-            fixed_lot=BACKTEST_FIXED_LOT,
+            fixed_lot=fixed_lot,
             daily_loss_limit=BACKTEST_DAILY_LOSS_LIMIT,
+            sl_atr_multiplier=sl_atr_multiplier,
+            tp_atr_multiplier=tp_atr_multiplier,
+            horizon_bars=horizon_bars,
         )
         result["source_start"] = str(first_df_ts)
         result["source_end"] = str(last_df_ts)
@@ -161,6 +175,8 @@ def run(start_time=None, end_time=None):
         parameters = {
             "strategy": strategy.NAME,
             "strategy_parameters": strategy.parameters(),
+            "strategy_deployment": deployment,
+            "trading_mode": "DEMO" if demo_mode else "VALIDATED_OR_GUARDED",
             "data_source": "eurusd_features (indicateurs pré-calculés)",
             "features_validation": validation_report.to_dict() if validation_report else None,
             "requested_period": {"start": requested_start, "end": requested_end},
@@ -168,21 +184,25 @@ def run(start_time=None, end_time=None):
             "filtered_rows": len(df),
             "filter_note": filtered_note,
             "initial_balance": DEFAULT_INITIAL_BALANCE,
-            "fixed_lot": BACKTEST_FIXED_LOT,
+            "fixed_lot": fixed_lot,
             "commission_per_lot": DEFAULT_COMMISSION_PER_LOT,
             "slippage_points": DEFAULT_SLIPPAGE_POINTS,
             "max_trades_per_day": MAX_TRADES_PER_DAY,
             "stop_on_positive_daily_net": True,
             "third_trade_recovery_without_risk_increase": True,
             "daily_loss_limit": BACKTEST_DAILY_LOSS_LIMIT,
-            "sl_atr_multiplier": 1.0,
-            "tp_atr_multiplier": 2.0,
-            "horizon_bars": HORIZON_BARS,
+            "sl_atr_multiplier": sl_atr_multiplier,
+            "tp_atr_multiplier": tp_atr_multiplier,
+            "horizon_bars": horizon_bars,
             "execution_model": "bid/ask observed spread + adverse slippage on both sides",
             "data_analysis": data_analysis,
             "warehouse_analysis": warehouse_analysis,
             "total_trades_generated": len(result.get("trades", [])),
         }
+        # Keep the API/dashboard response identical to the parameters stored
+        # with the run.  Previously the direct result exposed the simulator's
+        # generic defaults even when another live strategy was backtested.
+        result["parameters"] = parameters
         
         backtest_run_id = None
         with connection.cursor() as cursor:
@@ -206,6 +226,7 @@ def run(start_time=None, end_time=None):
             if row:
                 backtest_run_id = int(row[0])
         connection.commit()
+        result["backtest_run_id"] = backtest_run_id
 
         if result.get("trades"):
             # La sequence rend chaque trade d'un run idempotent en base. Elle

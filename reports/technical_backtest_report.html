@@ -1,0 +1,688 @@
+
+    <!DOCTYPE html>
+    <html lang="fr">
+    <head>
+        <meta charset="UTF-8">
+        <title>Backtest Stratégie Technique</title>
+        <style>
+            body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+            h1 { color: #333; }
+            h2 { color: #555; margin-top: 30px; border-bottom: 2px solid #ddd; padding-bottom: 10px; }
+            .metrics { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }
+            .metric-box { background: white; padding: 15px; border-radius: 5px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            .metric-label { font-size: 12px; color: #999; text-transform: uppercase; }
+            .metric-value { font-size: 20px; font-weight: bold; color: #333; }
+            .positive { color: #27ae60; }
+            .negative { color: #e74c3c; }
+            table { width: 100%; border-collapse: collapse; background: white; margin: 20px 0; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+            th { background: #34495e; color: white; padding: 12px; text-align: left; }
+            td { padding: 10px; border-bottom: 1px solid #ddd; font-size: 12px; }
+            tr:hover { background: #f9f9f9; }
+        </style>
+    </head>
+    <body>
+        <h1>Backtest Stratégie Technique - EUR/USD M1</h1>
+        <p><small>Généré le 2026-09-24 17:57:09</small></p>
+        
+        <h2>Stratégie</h2>
+        <p><strong>Type:</strong> Trend Following + Pullback rejete + Momentum</p>
+        <p><strong>Indicateurs:</strong> EMA 9/21/50, RSI 14, MACD, ATR 14</p>
+        <p><strong>Score minimum:</strong> 7/8</p>
+        
+        <h2>Métriques Principales</h2>
+        <div class="metrics">
+            <div class="metric-box">
+                <div class="metric-label">Balance Finale</div>
+                <div class="metric-value negative">$99.67</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Profit Net</div>
+                <div class="metric-value negative">$-0.33</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Retour %</div>
+                <div class="metric-value negative">-0.33%</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Nombre de Trades</div>
+                <div class="metric-value">22</div>
+            </div>
+        </div>
+        
+        <div class="metrics">
+            <div class="metric-box">
+                <div class="metric-label">Win Rate</div>
+                <div class="metric-value">50.00%</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Profit Factor</div>
+                <div class="metric-value negative">0.99</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Expectancy</div>
+                <div class="metric-value negative">$-0.02</div>
+            </div>
+            <div class="metric-box">
+                <div class="metric-label">Max Drawdown</div>
+                <div class="metric-value negative">$-15.46 (-15.46%)</div>
+            </div>
+        </div>
+        
+        <h2>Détails des Trades</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Heure Entrée</th>
+                    <th>Heure Sortie</th>
+                    <th>Type</th>
+                    <th>Prix Entrée</th>
+                    <th>EMA 9</th>
+                    <th>EMA 21</th>
+                    <th>EMA 50</th>
+                    <th>RSI</th>
+                    <th>MACD</th>
+                    <th>ATR</th>
+                    <th>Score</th>
+                    <th>SL (prix)</th>
+                    <th>TP (prix)</th>
+                    <th>Lot</th>
+                    <th>SL ($)</th>
+                    <th>TP ($)</th>
+                    <th>Prix Sortie</th>
+                    <th>P&L Prix</th>
+                    <th>Commission</th>
+                    <th>Slippage</th>
+                    <th>P&L Net</th>
+                    <th>Balance</th>
+                    <th>Résultat</th>
+                </tr>
+            </thead>
+            <tbody>
+                
+        <tr>
+            <td>2026-08-19 15:45:00</td>
+            <td>2026-08-19 15:53:00</td>
+            <td>BUY</td>
+            <td>1.16295</td>
+            <td>1.16228</td>
+            <td>1.16180</td>
+            <td>1.16122</td>
+            <td>80.0</td>
+            <td>0.00049</td>
+            <td>0.00040</td>
+            <td><strong>7/8</strong></td>
+            <td>1.16239</td>
+            <td>1.16383</td>
+            <td>0.07</td>
+            <td>3.91 $</td>
+            <td>6.14 $</td>
+            <td>1.16382</td>
+            <td>6.07</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">5.09</td>
+            <td>105.09</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-08-20 16:58:00</td>
+            <td>2026-08-20 17:15:00</td>
+            <td>SELL</td>
+            <td>1.16771</td>
+            <td>1.16785</td>
+            <td>1.16801</td>
+            <td>1.16828</td>
+            <td>35.2</td>
+            <td>-0.00019</td>
+            <td>0.00024</td>
+            <td><strong>7/8</strong></td>
+            <td>1.16804</td>
+            <td>1.16719</td>
+            <td>0.07</td>
+            <td>2.32 $</td>
+            <td>3.64 $</td>
+            <td>1.16728</td>
+            <td>3.01</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">2.03</td>
+            <td>107.12</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-08-28 17:19:00</td>
+            <td>2026-08-28 17:27:00</td>
+            <td>SELL</td>
+            <td>1.16107</td>
+            <td>1.16137</td>
+            <td>1.16198</td>
+            <td>1.16290</td>
+            <td>38.3</td>
+            <td>-0.00068</td>
+            <td>0.00045</td>
+            <td><strong>7/8</strong></td>
+            <td>1.16170</td>
+            <td>1.16008</td>
+            <td>0.07</td>
+            <td>4.40 $</td>
+            <td>6.91 $</td>
+            <td>1.16017</td>
+            <td>6.28</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">5.30</td>
+            <td>112.42</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-08-31 17:54:00</td>
+            <td>2026-08-31 18:31:00</td>
+            <td>BUY</td>
+            <td>1.16136</td>
+            <td>1.16088</td>
+            <td>1.16069</td>
+            <td>1.16041</td>
+            <td>69.5</td>
+            <td>0.00019</td>
+            <td>0.00023</td>
+            <td><strong>8/8</strong></td>
+            <td>1.16103</td>
+            <td>1.16187</td>
+            <td>0.07</td>
+            <td>2.29 $</td>
+            <td>3.60 $</td>
+            <td>1.16186</td>
+            <td>3.53</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">2.55</td>
+            <td>114.96</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-02 15:30:00</td>
+            <td>2026-09-02 15:34:00</td>
+            <td>BUY</td>
+            <td>1.15827</td>
+            <td>1.15815</td>
+            <td>1.15803</td>
+            <td>1.15784</td>
+            <td>59.1</td>
+            <td>0.00012</td>
+            <td>0.00023</td>
+            <td><strong>7/8</strong></td>
+            <td>1.15795</td>
+            <td>1.15878</td>
+            <td>0.07</td>
+            <td>2.27 $</td>
+            <td>3.56 $</td>
+            <td>1.15794</td>
+            <td>-2.34</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-3.32</td>
+            <td>111.65</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-02 16:51:00</td>
+            <td>2026-09-02 16:54:00</td>
+            <td>BUY</td>
+            <td>1.15946</td>
+            <td>1.15932</td>
+            <td>1.15922</td>
+            <td>1.15887</td>
+            <td>63.3</td>
+            <td>0.00015</td>
+            <td>0.00024</td>
+            <td><strong>7/8</strong></td>
+            <td>1.15913</td>
+            <td>1.15998</td>
+            <td>0.07</td>
+            <td>2.33 $</td>
+            <td>3.66 $</td>
+            <td>1.15997</td>
+            <td>3.59</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">2.61</td>
+            <td>114.26</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-02 17:05:00</td>
+            <td>2026-09-02 17:06:00</td>
+            <td>BUY</td>
+            <td>1.16021</td>
+            <td>1.15999</td>
+            <td>1.15981</td>
+            <td>1.15936</td>
+            <td>65.6</td>
+            <td>0.00023</td>
+            <td>0.00026</td>
+            <td><strong>7/8</strong></td>
+            <td>1.15985</td>
+            <td>1.16078</td>
+            <td>0.07</td>
+            <td>2.55 $</td>
+            <td>4.02 $</td>
+            <td>1.15984</td>
+            <td>-2.63</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-3.61</td>
+            <td>110.65</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-03 15:37:00</td>
+            <td>2026-09-03 15:53:00</td>
+            <td>BUY</td>
+            <td>1.16209</td>
+            <td>1.16180</td>
+            <td>1.16155</td>
+            <td>1.16132</td>
+            <td>65.2</td>
+            <td>0.00022</td>
+            <td>0.00036</td>
+            <td><strong>7/8</strong></td>
+            <td>1.16159</td>
+            <td>1.16288</td>
+            <td>0.07</td>
+            <td>3.51 $</td>
+            <td>5.52 $</td>
+            <td>1.16287</td>
+            <td>5.45</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">4.47</td>
+            <td>115.13</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-10 16:10:00</td>
+            <td>2026-09-10 16:11:00</td>
+            <td>SELL</td>
+            <td>1.16005</td>
+            <td>1.16026</td>
+            <td>1.16033</td>
+            <td>1.16061</td>
+            <td>47.3</td>
+            <td>-0.00008</td>
+            <td>0.00028</td>
+            <td><strong>8/8</strong></td>
+            <td>1.16044</td>
+            <td>1.15944</td>
+            <td>0.07</td>
+            <td>2.72 $</td>
+            <td>4.27 $</td>
+            <td>1.16053</td>
+            <td>-3.35</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-4.33</td>
+            <td>110.80</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-10 16:13:00</td>
+            <td>2026-09-10 16:22:00</td>
+            <td>SELL</td>
+            <td>1.16013</td>
+            <td>1.16021</td>
+            <td>1.16029</td>
+            <td>1.16056</td>
+            <td>38.0</td>
+            <td>-0.00009</td>
+            <td>0.00026</td>
+            <td><strong>8/8</strong></td>
+            <td>1.16049</td>
+            <td>1.15956</td>
+            <td>0.07</td>
+            <td>2.55 $</td>
+            <td>4.02 $</td>
+            <td>1.16058</td>
+            <td>-3.19</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-4.17</td>
+            <td>106.63</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-10 17:25:00</td>
+            <td>2026-09-10 17:25:00</td>
+            <td>BUY</td>
+            <td>1.16240</td>
+            <td>1.16191</td>
+            <td>1.16181</td>
+            <td>1.16154</td>
+            <td>59.2</td>
+            <td>0.00012</td>
+            <td>0.00025</td>
+            <td><strong>8/8</strong></td>
+            <td>1.16205</td>
+            <td>1.16296</td>
+            <td>0.07</td>
+            <td>2.48 $</td>
+            <td>3.90 $</td>
+            <td>1.16204</td>
+            <td>-2.55</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-3.53</td>
+            <td>103.10</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-11 15:56:00</td>
+            <td>2026-09-11 16:03:00</td>
+            <td>BUY</td>
+            <td>1.16016</td>
+            <td>1.15986</td>
+            <td>1.15954</td>
+            <td>1.15929</td>
+            <td>69.1</td>
+            <td>0.00031</td>
+            <td>0.00032</td>
+            <td><strong>7/8</strong></td>
+            <td>1.15972</td>
+            <td>1.16086</td>
+            <td>0.07</td>
+            <td>3.10 $</td>
+            <td>4.87 $</td>
+            <td>1.16085</td>
+            <td>4.80</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">3.82</td>
+            <td>106.92</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-14 18:06:00</td>
+            <td>2026-09-14 18:12:00</td>
+            <td>BUY</td>
+            <td>1.15439</td>
+            <td>1.15382</td>
+            <td>1.15378</td>
+            <td>1.15363</td>
+            <td>57.3</td>
+            <td>0.00005</td>
+            <td>0.00024</td>
+            <td><strong>8/8</strong></td>
+            <td>1.15405</td>
+            <td>1.15492</td>
+            <td>0.07</td>
+            <td>2.36 $</td>
+            <td>3.71 $</td>
+            <td>1.15404</td>
+            <td>-2.43</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-3.41</td>
+            <td>103.51</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-14 18:42:00</td>
+            <td>2026-09-14 19:15:00</td>
+            <td>BUY</td>
+            <td>1.15469</td>
+            <td>1.15453</td>
+            <td>1.15437</td>
+            <td>1.15414</td>
+            <td>57.5</td>
+            <td>0.00016</td>
+            <td>0.00024</td>
+            <td><strong>7/8</strong></td>
+            <td>1.15436</td>
+            <td>1.15521</td>
+            <td>0.07</td>
+            <td>2.31 $</td>
+            <td>3.63 $</td>
+            <td>1.15520</td>
+            <td>3.56</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">2.58</td>
+            <td>106.09</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-16 21:10:00</td>
+            <td>2026-09-16 21:13:00</td>
+            <td>SELL</td>
+            <td>1.15176</td>
+            <td>1.15196</td>
+            <td>1.15237</td>
+            <td>1.15280</td>
+            <td>35.0</td>
+            <td>-0.00041</td>
+            <td>0.00062</td>
+            <td><strong>7/8</strong></td>
+            <td>1.15263</td>
+            <td>1.15039</td>
+            <td>0.07</td>
+            <td>6.09 $</td>
+            <td>9.57 $</td>
+            <td>1.15048</td>
+            <td>8.94</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">7.96</td>
+            <td>114.05</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-22 10:44:00</td>
+            <td>2026-09-22 10:47:00</td>
+            <td>SELL</td>
+            <td>1.14541</td>
+            <td>1.14567</td>
+            <td>1.14580</td>
+            <td>1.14599</td>
+            <td>35.5</td>
+            <td>-0.00014</td>
+            <td>0.00024</td>
+            <td><strong>8/8</strong></td>
+            <td>1.14574</td>
+            <td>1.14489</td>
+            <td>0.07</td>
+            <td>2.34 $</td>
+            <td>3.67 $</td>
+            <td>1.14583</td>
+            <td>-2.97</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-3.95</td>
+            <td>110.11</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-22 11:50:00</td>
+            <td>2026-09-22 11:52:00</td>
+            <td>BUY</td>
+            <td>1.14554</td>
+            <td>1.14497</td>
+            <td>1.14459</td>
+            <td>1.14448</td>
+            <td>81.3</td>
+            <td>0.00034</td>
+            <td>0.00032</td>
+            <td><strong>7/8</strong></td>
+            <td>1.14509</td>
+            <td>1.14625</td>
+            <td>0.07</td>
+            <td>3.16 $</td>
+            <td>4.97 $</td>
+            <td>1.14624</td>
+            <td>4.90</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">3.92</td>
+            <td>114.03</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-22 11:57:00</td>
+            <td>2026-09-22 12:00:00</td>
+            <td>BUY</td>
+            <td>1.14616</td>
+            <td>1.14579</td>
+            <td>1.14528</td>
+            <td>1.14485</td>
+            <td>62.8</td>
+            <td>0.00052</td>
+            <td>0.00034</td>
+            <td><strong>7/8</strong></td>
+            <td>1.14569</td>
+            <td>1.14690</td>
+            <td>0.07</td>
+            <td>3.31 $</td>
+            <td>5.20 $</td>
+            <td>1.14568</td>
+            <td>-3.38</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-4.36</td>
+            <td>109.67</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-23 17:26:00</td>
+            <td>2026-09-23 17:29:00</td>
+            <td>SELL</td>
+            <td>1.13896</td>
+            <td>1.13925</td>
+            <td>1.13949</td>
+            <td>1.13982</td>
+            <td>23.0</td>
+            <td>-0.00024</td>
+            <td>0.00024</td>
+            <td><strong>7/8</strong></td>
+            <td>1.13930</td>
+            <td>1.13842</td>
+            <td>0.07</td>
+            <td>2.39 $</td>
+            <td>3.76 $</td>
+            <td>1.13851</td>
+            <td>3.13</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: green; font-weight: bold">2.15</td>
+            <td>111.82</td>
+            <td>WIN</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-24 19:17:00</td>
+            <td>2026-09-24 19:18:00</td>
+            <td>BUY</td>
+            <td>1.13885</td>
+            <td>1.13751</td>
+            <td>1.13731</td>
+            <td>1.13715</td>
+            <td>79.2</td>
+            <td>0.00016</td>
+            <td>0.00024</td>
+            <td><strong>7/8</strong></td>
+            <td>1.13851</td>
+            <td>1.13939</td>
+            <td>0.07</td>
+            <td>2.39 $</td>
+            <td>3.75 $</td>
+            <td>1.13850</td>
+            <td>-2.46</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-3.44</td>
+            <td>108.38</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-24 19:25:00</td>
+            <td>2026-09-24 19:32:00</td>
+            <td>BUY</td>
+            <td>1.13857</td>
+            <td>1.13819</td>
+            <td>1.13786</td>
+            <td>1.13748</td>
+            <td>73.9</td>
+            <td>0.00033</td>
+            <td>0.00042</td>
+            <td><strong>7/8</strong></td>
+            <td>1.13798</td>
+            <td>1.13950</td>
+            <td>0.07</td>
+            <td>4.15 $</td>
+            <td>6.52 $</td>
+            <td>1.13797</td>
+            <td>-4.22</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-5.20</td>
+            <td>103.18</td>
+            <td>LOSS</td>
+        </tr>
+        
+        <tr>
+            <td>2026-09-24 19:37:00</td>
+            <td>2026-09-24 19:44:00</td>
+            <td>BUY</td>
+            <td>1.13856</td>
+            <td>1.13820</td>
+            <td>1.13809</td>
+            <td>1.13775</td>
+            <td>57.8</td>
+            <td>0.00016</td>
+            <td>0.00025</td>
+            <td><strong>7/8</strong></td>
+            <td>1.13821</td>
+            <td>1.13911</td>
+            <td>0.07</td>
+            <td>2.46 $</td>
+            <td>3.87 $</td>
+            <td>1.13820</td>
+            <td>-2.53</td>
+            <td>0.98</td>
+            <td>0.07</td>
+            <td style="color: red; font-weight: bold">-3.51</td>
+            <td>99.67</td>
+            <td>LOSS</td>
+        </tr>
+        
+            </tbody>
+        </table>
+        
+        <h2>Résumé</h2>
+        <ul>
+            <li>Trades gagnants: 11</li>
+            <li>Trades perdants: 11</li>
+            <li>Profit total: $42.48</li>
+            <li>Perte totale: $42.83</li>
+            <li>Gain moyen: $3.86</li>
+            <li>Perte moyenne: $-3.89</li>
+        </ul>
+    </body>
+    </html>
+    

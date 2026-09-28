@@ -19,7 +19,7 @@ from ml_trading.backtest_technical import (
     get_warehouse_analysis_snapshot,
 )
 from ml_trading.features_provider import get_latest_feature_timestamp
-from ml_trading.pipeline import ROOT, load_state, save_state
+from ml_trading.pipeline import ROOT, load_state, save_state, reconcile_mt5_history
 from ml_trading.technical_trading_bot import TechnicalTradingBot
 from ml_trading import mt5_demo
 
@@ -439,9 +439,15 @@ def api_scalping_validation():
 @app.get("/api/mt5-demo")
 def api_mt5_demo():
     """Live DEMO snapshot plus PostgreSQL history for the demo strategy only."""
+    demo_enabled = os.getenv("MT5_DEMO_MODE", "false").strip().lower() == "true"
+    reconciliation_error = None
+    if demo_enabled:
+        try:
+            reconcile_mt5_history()
+        except Exception as error:
+            reconciliation_error = str(error)
     state = load_state()
     signal = state.get("signal", {})
-    demo_enabled = os.getenv("MT5_DEMO_MODE", "false").strip().lower() == "true"
     demo = signal.get("mt5_demo") or {}
     if not demo_enabled:
         demo = {
@@ -477,7 +483,11 @@ def api_mt5_demo():
         except Exception as error:
             daily = {"_error": str(error)}
             daily_sessions = []
-    monitoring.update({"daily": daily, "daily_sessions": daily_sessions})
+    monitoring.update({
+        "daily": daily,
+        "daily_sessions": daily_sessions,
+        "reconciliation_error": reconciliation_error,
+    })
     return jsonify(monitoring)
 
 

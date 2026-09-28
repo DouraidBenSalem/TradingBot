@@ -18,13 +18,10 @@ ENV/
 _pydeps/
 
 # Environment variables and secrets
-.env
 .env.*
 !.env.example
 
 # Generated runtime data and reports
-runtime/
-reports/
 data_quality_report.html
 *.log
 
